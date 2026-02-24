@@ -53,12 +53,29 @@ def post_daily_thread():
     phrase = random.choice(OPENING_PHRASES)
     
     try:
+        standup_text = (
+            phrase + "\n\n"
+            "*Daily \u2014 status thread* \U0001f4cb\n"
+            "Please reply here before the 12:00 sync with:\n"
+            "\u2022 *Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
+            "\u2022 *Today (by EOD or days remaining):* what you'll complete / how many days left\n"
+            "\u2022 *Blockers / Risks:* who/what is needed to unblock\n\n"
+            "_Status-only here; move discussion to subthreads_\n"
+            "_If you can't finish something today, state the time remaining_\n\n"
+            "cc: <@dk>"
+        )
         response = app.client.chat_postMessage(
             channel=CHANNEL_ID,
-            text=phrase
+            text=standup_text
         )
         daily_thread_ts = response["ts"]
         logger.info(f"Posted daily thread: {daily_thread_ts}")
+        # Persist ts so bot survives restarts
+        if supabase:
+            try:
+                supabase.table("bot_state").upsert({"key": "daily_thread_ts", "value": daily_thread_ts}).execute()
+            except Exception as e:
+                logger.warning(f"Could not save bot state: {e}")
         
     except Exception as e:
         logger.error(f"Error posting daily thread: {e}")
