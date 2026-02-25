@@ -54,14 +54,14 @@ def post_daily_thread():
     
     try:
         standup_text = (
-            phrase + "\n\n"
-            "*Daily \u2014 status thread* \U0001f4cb\n"
-            "Please reply here before the 12:00 sync with:\n"
-            "\u2022 *Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
-            "\u2022 *Today (by EOD or days remaining):* what you'll complete / how many days left\n"
-            "\u2022 *Blockers / Risks:* who/what is needed to unblock\n\n"
-            "_Status-only here; move discussion to subthreads_\n"
-            "_If you can't finish something today, state the time remaining_\n\n"
+            f"{phrase} @eng-team @brand-team\n\n"
+            "*Daily — status thread* 💥\n"
+            "*Please reply here before the 12:00 sync with:*\n"
+            "*Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
+            "*Today (by EOD or days remaining):* what you'll complete / how many days left\n"
+            "*Blockers / Risks:* who/what is needed to unblock\n"
+            "*Status-only here; move discussion to subthreads*\n"
+            "*If you can't finish something today, state the time remaining*\n\n"
             "cc: <@dk>"
         )
         response = app.client.chat_postMessage(
@@ -143,7 +143,7 @@ def register_events(app_instance):
                 if existing_record.data:
                     # Если отчет уже есть, склеиваем старый текст с новым
                     old_text = existing_record.data[0]["raw_text"]
-                    final_text = f"{old_text}\n\n[Дополнение]:\n{text}"
+                    final_text = f"{old_text}\n\n[Addition:]:\n{text}"
                     
                     # Обновляем существующую запись
                     supabase.table("standup_reports").update({"raw_text": final_text}).eq("user_id", user_id).eq("date", today).execute()
