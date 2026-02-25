@@ -1,6 +1,7 @@
 import os
 import logging
 import re
+import json
 from datetime import date, datetime
 import random
 import time
@@ -80,7 +81,7 @@ supabase = None
 def get_vacation_users():
     vacation_users = set()
     if not app:
-        return vacation_users
+        return "error"
     try:
         yesterday_ts = time.time() - 24 * 3600
         history = app.client.conversations_history(
@@ -89,14 +90,17 @@ def get_vacation_users():
         )
         for msg in history.get("messages", []):
             if msg.get("bot_id") or msg.get("app_id"):
-                text = msg.get("text", "")
+                # Трюк: превращаем всё сообщение (включая скрытые блоки) в строку
+                full_msg_text = json.dumps(msg, ensure_ascii=False).lower()
+                
                 for uid, name in TEAM_MAPPING.items():
-                    if name.lower() in text.lower():
+                    if name.lower() in full_msg_text:
                         vacation_users.add(uid)
         logger.info(f"Users on vacation today: {vacation_users}")
+        return vacation_users
     except Exception as e:
         logger.error(f"Error fetching vacations channel history: {e}")
-    return vacation_users
+        return "error"
 
 def post_daily_thread():
     global daily_thread_ts
@@ -135,12 +139,25 @@ def post_daily_thread():
         
         # ОТДЕЛЬНЫЙ ПОСТ ПРО ОТПУСКНИКОВ СРАЗУ ПОСЛЕ ТРЕДА
         vacations = get_vacation_users()
-        if vacations:
+        
+        if vacations == "error":
+            app.client.chat_postMessage(
+                channel=CHANNEL_ID,
+                thread_ts=daily_thread_ts,
+                text="⚠️ _Не удалось проверить отпуска (ошибка доступа к каналу или API)._"
+            )
+        elif vacations:  # Если отпускники нашлись
             mentions = ", ".join([f"<@{uid}>" for uid in vacations])
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
                 text=f"🌴 *Сегодня отсутствуют (Vacation/Off):* {mentions}\n_Хорошего отдыха!_"
+            )
+        else:  # Если множество пустое
+            app.client.chat_postMessage(
+                channel=CHANNEL_ID,
+                thread_ts=daily_thread_ts,
+                text="🌴 *Сегодня все в строю!* (Отпускников не найдено)"
             )
             
     except Exception as e:
@@ -165,6 +182,8 @@ def check_missing_reports():
         
         # 2. Получаем отпускников через нашу новую функцию
         vacation_users = get_vacation_users()
+        if vacation_users == "error":
+            vacation_users = set()  # Если ошибка, считаем, что отпускников нет, чтобы не сломать код
 
         # 3. Вычисляем должников (берем TEAM_USER_IDS, где уже нет CEO)
         missing_users = [
