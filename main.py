@@ -83,22 +83,20 @@ def get_vacation_users():
     if not app:
         return "error"
     try:
-        # Временно берем 48 часов назад, чтобы точно захватить вчерашнее утро
-        yesterday_ts = time.time() - 48 * 3600
+        # Убрали привязку ко времени! Просто просим последние 10 сообщений
         history = app.client.conversations_history(
-            channel="CJS19HLG1",  # Твой канал #vacations
-            oldest=str(yesterday_ts)
+            channel="CJS19HLG1",  # ПРОВЕРЬ ЭТОТ ID В НАСТРОЙКАХ КАНАЛА!
+            limit=10 
         )
         
         messages = history.get("messages", [])
-        logger.info(f"Найдено сообщений в канале отпусков за 48 часов: {len(messages)}")
+        logger.info(f"DEBUG: Всего найдено сообщений в канале (без фильтра времени): {len(messages)}")
         
         for msg in messages:
             if msg.get("bot_id") or msg.get("app_id"):
                 full_msg_text = json.dumps(msg, ensure_ascii=False).lower()
                 
-                # ДЕБАГ: Печатаем первые 500 символов сообщения бота в логи
-                logger.info(f"RAW BOT MSG: {full_msg_text[:500]}...")
+                logger.info(f"RAW BOT MSG: {full_msg_text[:300]}...")
                 
                 for uid, name in TEAM_MAPPING.items():
                     if name.lower() in full_msg_text:
