@@ -83,19 +83,28 @@ def get_vacation_users():
     if not app:
         return "error"
     try:
-        yesterday_ts = time.time() - 24 * 3600
+        # Временно берем 48 часов назад, чтобы точно захватить вчерашнее утро
+        yesterday_ts = time.time() - 48 * 3600
         history = app.client.conversations_history(
             channel="CJS19HLG1",  # Твой канал #vacations
             oldest=str(yesterday_ts)
         )
-        for msg in history.get("messages", []):
+        
+        messages = history.get("messages", [])
+        logger.info(f"Найдено сообщений в канале отпусков за 48 часов: {len(messages)}")
+        
+        for msg in messages:
             if msg.get("bot_id") or msg.get("app_id"):
-                # Трюк: превращаем всё сообщение (включая скрытые блоки) в строку
                 full_msg_text = json.dumps(msg, ensure_ascii=False).lower()
+                
+                # ДЕБАГ: Печатаем первые 500 символов сообщения бота в логи
+                logger.info(f"RAW BOT MSG: {full_msg_text[:500]}...")
                 
                 for uid, name in TEAM_MAPPING.items():
                     if name.lower() in full_msg_text:
                         vacation_users.add(uid)
+                        logger.info(f"✅ Нашли отпускника в тексте: {name}")
+                        
         logger.info(f"Users on vacation today: {vacation_users}")
         return vacation_users
     except Exception as e:
