@@ -1,6 +1,6 @@
 import os
 import logging
-import re  # <--- ДОБАВЬ ЭТУ СТРОЧКУ
+import re
 from datetime import date, datetime
 import random
 import time
@@ -61,8 +61,9 @@ TEAM_MAPPING = {
     "U068KKKNP9R": "dmytro 'kino' klochko"
 }
 
-# Бот сам соберет все ключи (ID) в список для проверок
-TEAM_USER_IDS = list(TEAM_MAPPING.keys())
+# Бот сам соберет все ключи (ID) в список для проверок должников
+# Исключаем ID CEO (@dk - U068KKKNP9R)
+TEAM_USER_IDS = [uid for uid in TEAM_MAPPING.keys() if uid != "U068KKKNP9R"]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -73,9 +74,29 @@ def get_supabase_client():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Initialize clients
-# Defer app initialization to main or try block to avoid immediate crash on import if tokens missing
 app = None
 supabase = None
+
+def get_vacation_users():
+    vacation_users = set()
+    if not app:
+        return vacation_users
+    try:
+        yesterday_ts = time.time() - 24 * 3600
+        history = app.client.conversations_history(
+            channel="CJS19HLG1",  # Твой канал #vacations
+            oldest=str(yesterday_ts)
+        )
+        for msg in history.get("messages", []):
+            if msg.get("bot_id") or msg.get("app_id"):
+                text = msg.get("text", "")
+                for uid, name in TEAM_MAPPING.items():
+                    if name.lower() in text.lower():
+                        vacation_users.add(uid)
+        logger.info(f"Users on vacation today: {vacation_users}")
+    except Exception as e:
+        logger.error(f"Error fetching vacations channel history: {e}")
+    return vacation_users
 
 def post_daily_thread():
     global daily_thread_ts
@@ -104,13 +125,24 @@ def post_daily_thread():
         )
         daily_thread_ts = response["ts"]
         logger.info(f"Posted daily thread: {daily_thread_ts}")
-        # Persist ts so bot survives restarts
+        
+        # Сохраняем ts в базу
         if supabase:
             try:
                 supabase.table("bot_state").upsert({"key": "daily_thread_ts", "value": daily_thread_ts}).execute()
             except Exception as e:
                 logger.warning(f"Could not save bot state: {e}")
         
+        # ОТДЕЛЬНЫЙ ПОСТ ПРО ОТПУСКНИКОВ СРАЗУ ПОСЛЕ ТРЕДА
+        vacations = get_vacation_users()
+        if vacations:
+            mentions = ", ".join([f"<@{uid}>" for uid in vacations])
+            app.client.chat_postMessage(
+                channel=CHANNEL_ID,
+                thread_ts=daily_thread_ts,
+                text=f"🌴 *Сегодня отсутствуют (Vacation/Off):* {mentions}\n_Хорошего отдыха!_"
+            )
+            
     except Exception as e:
         logger.error(f"Error posting daily thread: {e}")
 
@@ -125,37 +157,16 @@ def check_missing_reports():
         return
 
     today = date.today().isoformat()
-    VACATIONS_CHANNEL_ID = "CJS19HLG1"
     
     try:
         # 1. Получаем тех, кто УЖЕ отписался
         response = supabase.table("standup_reports").select("user_id").eq("date", today).execute()
         reported_users = {row["user_id"] for row in response.data}
         
-        # 2. Идем в канал #vacations
-        vacation_users = set()
-        try:
-            yesterday_ts = time.time() - 24 * 3600
-            history = app.client.conversations_history(
-                channel=VACATIONS_CHANNEL_ID,
-                oldest=str(yesterday_ts)
-            )
-            
-            for msg in history.get("messages", []):
-                # Ищем сообщение от бота Vacation Tracker
-                if msg.get("bot_id") or msg.get("app_id"):
-                    text = msg.get("text", "")
-                    
-                    # Проверяем каждого юзера из команды: есть ли его имя в тексте?
-                    for uid, name in TEAM_MAPPING.items():
-                        if name.lower() in text.lower():
-                            vacation_users.add(uid)
-                            
-            logger.info(f"Users on vacation today: {vacation_users}")
-        except Exception as e:
-            logger.error(f"Error fetching vacations channel history: {e}")
+        # 2. Получаем отпускников через нашу новую функцию
+        vacation_users = get_vacation_users()
 
-        # 3. Вычисляем должников
+        # 3. Вычисляем должников (берем TEAM_USER_IDS, где уже нет CEO)
         missing_users = [
             uid for uid in TEAM_USER_IDS 
             if uid not in reported_users and uid not in vacation_users
