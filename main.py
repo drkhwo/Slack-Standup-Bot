@@ -54,7 +54,7 @@ def post_daily_thread():
     
     try:
         standup_text = (
-            f"{phrase} @eng-team @brand-team\n\n"
+            f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X>\n\n"
             "*Daily — status thread* 💥\n"
             "*Please reply here before the 12:00 sync with:*\n"
             "*Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
@@ -62,7 +62,7 @@ def post_daily_thread():
             "*Blockers / Risks:* who/what is needed to unblock\n"
             "*Status-only here; move discussion to subthreads*\n"
             "*If you can't finish something today, state the time remaining*\n\n"
-            "cc: <@dk>"
+            "cc: <@U068KKKNP9R>"
         )
         response = app.client.chat_postMessage(
             channel=CHANNEL_ID,
