@@ -125,7 +125,11 @@ class TestPostDailyThread(unittest.TestCase):
         from phrases import OPENING_PHRASES
         bot_module.post_daily_thread()
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
-        self.assertIn(call_kwargs['text'], OPENING_PHRASES)
+        text = call_kwargs['text']
+        self.assertTrue(
+            any(text.startswith(phrase) for phrase in OPENING_PHRASES),
+            f"Текст сообщения должен начинаться с одной из OPENING_PHRASES"
+        )
 
     def test_post_daily_thread_skips_if_no_app(self):
         """TC-03-05: post_daily_thread() должен выйти если app не инициализирован"""
@@ -357,6 +361,225 @@ class TestPhrases(unittest.TestCase):
 
 
 # ─────────────────────────────────────────────────────────
+# TC-07: post_daily_thread — дополнительные проверки
+# ─────────────────────────────────────────────────────────
+class TestPostDailyThreadExtended(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        self.mock_app.client.chat_postMessage.return_value = {"ts": "1234567890.123456"}
+        bot_module.app = self.mock_app
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+        bot_module.daily_thread_ts = None
+
+    def test_standup_text_contains_instructions(self):
+        """TC-07-01: Сообщение содержит инструкцию по заполнению"""
+        bot_module.post_daily_thread()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        text = call_kwargs['text']
+        self.assertIn("Yesterday", text)
+        self.assertIn("Today", text)
+        self.assertIn("Blockers", text)
+
+    def test_standup_text_contains_thread_label(self):
+        """TC-07-02: Сообщение содержит метку Daily status thread"""
+        bot_module.post_daily_thread()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertIn("Daily", call_kwargs['text'])
+
+    def test_post_daily_thread_persists_state_to_supabase(self):
+        """TC-07-03: post_daily_thread() сохраняет ts в bot_state таблицу"""
+        mock_supabase = MagicMock()
+        bot_module.supabase = mock_supabase
+        bot_module.post_daily_thread()
+        mock_supabase.table.assert_called_with("bot_state")
+        upsert_data = mock_supabase.table.return_value.upsert.call_args[0][0]
+        self.assertEqual(upsert_data['key'], 'daily_thread_ts')
+        self.assertEqual(upsert_data['value'], '1234567890.123456')
+        bot_module.supabase = None
+
+    def test_post_daily_thread_handles_supabase_state_error(self):
+        """TC-07-04: Ошибка сохранения bot_state не крашит бота"""
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.upsert.return_value.execute.side_effect = Exception("DB error")
+        bot_module.supabase = mock_supabase
+        try:
+            bot_module.post_daily_thread()
+        except Exception:
+            self.fail("Ошибка bot_state не должна крашить post_daily_thread")
+        # Тред всё равно должен быть создан
+        self.assertEqual(bot_module.daily_thread_ts, "1234567890.123456")
+        bot_module.supabase = None
+
+
+# ─────────────────────────────────────────────────────────
+# TC-08: check_missing_reports — дополнительные проверки
+# ─────────────────────────────────────────────────────────
+class TestCheckMissingReportsExtended(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        self.mock_supabase = MagicMock()
+        bot_module.app = self.mock_app
+        bot_module.supabase = self.mock_supabase
+        bot_module.daily_thread_ts = "1234567890.123456"
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+        bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
+
+    def test_reminder_message_contains_emoji(self):
+        """TC-08-01: Напоминание содержит эмоджи ⏳"""
+        mock_response = MagicMock()
+        mock_response.data = []
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+        bot_module.check_missing_reports()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertIn("⏳", call_kwargs['text'])
+
+    def test_reminder_sent_in_thread(self):
+        """TC-08-02: Напоминание отправляется в тред, а не в канал"""
+        mock_response = MagicMock()
+        mock_response.data = []
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+        bot_module.check_missing_reports()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
+
+    def test_handles_supabase_error_gracefully(self):
+        """TC-08-03: Ошибка Supabase в check_missing_reports не крашит бота"""
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.side_effect = Exception("DB error")
+        try:
+            bot_module.check_missing_reports()
+        except Exception:
+            self.fail("check_missing_reports не должен выбрасывать исключение при ошибке DB")
+
+    def test_queries_today_date(self):
+        """TC-08-04: Запрос к Supabase использует сегодняшнюю дату"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}, {"user_id": "U222"}, {"user_id": "U333"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+        bot_module.check_missing_reports()
+        eq_call = self.mock_supabase.table.return_value.select.return_value.eq.call_args
+        self.assertEqual(eq_call[0][0], "date")
+        self.assertEqual(eq_call[0][1], date.today().isoformat())
+
+
+# ─────────────────────────────────────────────────────────
+# TC-09: handle_message_events — edge cases
+# ─────────────────────────────────────────────────────────
+class TestHandleMessageEdgeCases(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        self.mock_supabase = MagicMock()
+        bot_module.app = self.mock_app
+        bot_module.supabase = self.mock_supabase
+        bot_module.daily_thread_ts = "1234567890.123456"
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+
+        bot_module.register_events(self.mock_app)
+        event_decorator = self.mock_app.event.return_value
+        self.handler_func = event_decorator.call_args[0][0]
+
+    def _call_handler(self, body):
+        logger = MagicMock()
+        self.handler_func(body=body, logger=logger)
+
+    def test_ignores_message_without_thread_ts(self):
+        """TC-09-01: Сообщение без thread_ts (не в треде) игнорируется"""
+        body = {"event": {
+            "user": "U999",
+            "text": "Обычное сообщение",
+            "ts": "9999999999.000001",
+        }}
+        self._call_handler(body)
+        self.mock_supabase.table.assert_not_called()
+
+    def test_no_supabase_still_no_crash(self):
+        """TC-09-02: Сообщение в треде без supabase — не крашится"""
+        bot_module.supabase = None
+        body = {"event": {
+            "user": "U999",
+            "text": "Отчёт",
+            "ts": "9999999999.000001",
+            "thread_ts": "1234567890.123456",
+        }}
+        try:
+            self._call_handler(body)
+        except Exception:
+            self.fail("Не должен крашиться без supabase")
+        bot_module.supabase = self.mock_supabase
+
+    def test_reaction_not_added_on_supabase_error(self):
+        """TC-09-03: При ошибке Supabase реакция не ставится (не подтверждаем то, что не сохранено)"""
+        self.mock_supabase.table.return_value.insert.return_value.execute.side_effect = Exception("DB error")
+        body = {"event": {
+            "user": "U999",
+            "text": "Мой отчёт",
+            "ts": "9999999999.000001",
+            "thread_ts": "1234567890.123456",
+        }}
+        self._call_handler(body)
+        # Реакция не должна добавляться если insert упал
+        self.mock_app.client.reactions_add.assert_not_called()
+
+
+# ─────────────────────────────────────────────────────────
+# TC-10: main() — инициализация
+# ─────────────────────────────────────────────────────────
+class TestMainFunction(unittest.TestCase):
+
+    @patch('main.SocketModeHandler')
+    @patch('main.App')
+    @patch('main.BackgroundScheduler')
+    @patch('main.get_supabase_client')
+    def test_main_exits_without_tokens(self, mock_supa, mock_sched, mock_app, mock_handler):
+        """TC-10-01: main() не запускается без токенов"""
+        original_bot = bot_module.SLACK_BOT_TOKEN
+        original_app = bot_module.SLACK_APP_TOKEN
+        bot_module.SLACK_BOT_TOKEN = None
+        bot_module.SLACK_APP_TOKEN = None
+        bot_module.main()
+        mock_app.assert_not_called()
+        bot_module.SLACK_BOT_TOKEN = original_bot
+        bot_module.SLACK_APP_TOKEN = original_app
+
+    @patch('main.SocketModeHandler')
+    @patch('main.App')
+    @patch('main.BackgroundScheduler')
+    @patch('main.get_supabase_client')
+    def test_main_initializes_app(self, mock_supa, mock_sched, mock_app_cls, mock_handler):
+        """TC-10-02: main() инициализирует App с токеном"""
+        bot_module.SLACK_BOT_TOKEN = 'xoxb-test'
+        bot_module.SLACK_APP_TOKEN = 'xapp-test'
+        mock_app_instance = MagicMock()
+        mock_app_cls.return_value = mock_app_instance
+        mock_supa.return_value = MagicMock()
+        # Mock the test block
+        mock_app_instance.client.chat_postMessage.return_value = {"ts": "123"}
+        bot_module.main()
+        mock_app_cls.assert_called_once_with(token='xoxb-test')
+
+    @patch('main.SocketModeHandler')
+    @patch('main.App')
+    @patch('main.BackgroundScheduler')
+    @patch('main.get_supabase_client')
+    def test_main_schedules_jobs(self, mock_supa, mock_sched_cls, mock_app_cls, mock_handler):
+        """TC-10-03: main() регистрирует задачи в планировщике"""
+        bot_module.SLACK_BOT_TOKEN = 'xoxb-test'
+        bot_module.SLACK_APP_TOKEN = 'xapp-test'
+        mock_sched = MagicMock()
+        mock_sched_cls.return_value = mock_sched
+        mock_app = MagicMock()
+        mock_app_cls.return_value = mock_app
+        mock_supa.return_value = MagicMock()
+        mock_app.client.chat_postMessage.return_value = {"ts": "123"}
+        bot_module.main()
+        # Должно быть 2 задачи: post_daily_thread и check_missing_reports
+        self.assertEqual(mock_sched.add_job.call_count, 2)
+        mock_sched.start.assert_called_once()
+
+
+# ─────────────────────────────────────────────────────────
 # Точка запуска
 # ─────────────────────────────────────────────────────────
 if __name__ == '__main__':
@@ -369,6 +592,10 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestCheckMissingReports))
     suite.addTests(loader.loadTestsFromTestCase(TestHandleMessageEvents))
     suite.addTests(loader.loadTestsFromTestCase(TestPhrases))
+    suite.addTests(loader.loadTestsFromTestCase(TestPostDailyThreadExtended))
+    suite.addTests(loader.loadTestsFromTestCase(TestCheckMissingReportsExtended))
+    suite.addTests(loader.loadTestsFromTestCase(TestHandleMessageEdgeCases))
+    suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

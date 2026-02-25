@@ -176,27 +176,17 @@ def main():
     scheduler.start()
     
     logger.info("Bot started! 🤖")
-    
-    # TEST BLOCK — remove after testing
+
+    # Restore daily_thread_ts from Supabase if available
     global daily_thread_ts
-    try:
-        # 1. Test Supabase connection
-        supabase.table("standup_reports").select("*", count="exact").limit(1).execute()
-        print("✅ Supabase connection OK!")
-        
-        # 2. Post a test message
-        test_response = app.client.chat_postMessage(
-            channel=CHANNEL_ID,
-            text="🤖 Bot test — connection OK!"
-        )
-        print("✅ Slack test message sent!")
-        
-        # 3. Set daily_thread_ts
-        daily_thread_ts = test_response["ts"]
-        print(f"✅ daily_thread_ts set to: {daily_thread_ts}")
-        
-    except Exception as e:
-        print(f"❌ Test block failed: {e}")
+    if supabase:
+        try:
+            result = supabase.table("bot_state").select("value").eq("key", "daily_thread_ts").execute()
+            if result.data:
+                daily_thread_ts = result.data[0]["value"]
+                logger.info(f"Restored daily_thread_ts: {daily_thread_ts}")
+        except Exception as e:
+            logger.warning(f"Could not restore bot state: {e}")
 
     # Start Slack Socket Mode
     handler = SocketModeHandler(app, SLACK_APP_TOKEN)
