@@ -137,16 +137,29 @@ def register_events(app_instance):
                 return
 
             try:
-                # Upsert report
-                data = {
-                    "user_id": user_id,
-                    "date": today,
-                    "raw_text": text,
-                    "thread_ts": ts
-                }
-                supabase.table("standup_reports").insert(data).execute()
+                # 1. Ищем, есть ли уже отчет от этого юзера за сегодня
+                existing_record = supabase.table("standup_reports").select("raw_text").eq("user_id", user_id).eq("date", today).execute()
                 
-                # React to the message
+                if existing_record.data:
+                    # Если отчет уже есть, склеиваем старый текст с новым
+                    old_text = existing_record.data[0]["raw_text"]
+                    final_text = f"{old_text}\n\n[Дополнение]:\n{text}"
+                    
+                    # Обновляем существующую запись
+                    supabase.table("standup_reports").update({"raw_text": final_text}).eq("user_id", user_id).eq("date", today).execute()
+                    logger.info(f"Updated existing report for {user_id}")
+                else:
+                    # Если отчета еще нет, создаем новую запись
+                    data = {
+                        "user_id": user_id,
+                        "date": today,
+                        "raw_text": text,
+                        "thread_ts": ts
+                    }
+                    supabase.table("standup_reports").insert(data).execute()
+                    logger.info(f"Inserted new report for {user_id}")
+                
+                # Ставим галочку на сообщение в Slack
                 app_instance.client.reactions_add(
                     channel=CHANNEL_ID,
                     name="white_check_mark",
