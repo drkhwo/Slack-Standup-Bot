@@ -157,7 +157,7 @@ def register_events(app_instance):
                 logger.error(f"Error saving report: {e}")
 
 def main():
-    global app, supabase
+    global app, supabase, daily_thread_ts
     
     if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
         logger.error("SLACK_BOT_TOKEN or SLACK_APP_TOKEN not set")
@@ -171,14 +171,13 @@ def main():
     # Schedule jobs
     scheduler = BackgroundScheduler()
     # Using 'cron' triggers
-    scheduler.add_job(post_daily_thread, 'cron', hour=17, minute=17)
+    scheduler.add_job(post_daily_thread, 'cron', hour=17, minute=19)
     scheduler.add_job(check_missing_reports, 'cron', hour=11, minute=30)
     scheduler.start()
     
     logger.info("Bot started! 🤖")
 
     # Restore daily_thread_ts from Supabase if available
-    global daily_thread_ts
     if supabase:
         try:
             result = supabase.table("bot_state").select("value").eq("key", "daily_thread_ts").execute()
@@ -187,6 +186,10 @@ def main():
                 logger.info(f"Restored daily_thread_ts: {daily_thread_ts}")
         except Exception as e:
             logger.warning(f"Could not restore bot state: {e}")
+
+    # -------- СТРОЧКА ДЛЯ ТЕСТА --------
+    post_daily_thread()
+    # -----------------------------------
 
     # Start Slack Socket Mode
     handler = SocketModeHandler(app, SLACK_APP_TOKEN)
