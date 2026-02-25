@@ -171,7 +171,7 @@ def main():
     # Schedule jobs
     scheduler = BackgroundScheduler()
     # Using 'cron' triggers
-    scheduler.add_job(post_daily_thread, 'cron', hour=17, minute=07)
+    scheduler.add_job(post_daily_thread, 'cron', hour=17, minute=17)
     scheduler.add_job(check_missing_reports, 'cron', hour=11, minute=30)
     scheduler.start()
     
