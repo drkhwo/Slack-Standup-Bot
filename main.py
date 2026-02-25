@@ -1,5 +1,6 @@
 import os
 import logging
+import re  # <--- ДОБАВЬ ЭТУ СТРОЧКУ
 from datetime import date, datetime
 import random
 import time
@@ -27,8 +28,41 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
 
-# Hardcoded team list for MVP (Replace with real IDs)
-TEAM_USER_IDS = ["U12345678", "U87654321"] 
+# Маппинг: Slack User ID -> Имя, как оно пишется в Vacation Tracker
+TEAM_MAPPING = {
+    # == @eng-team ==
+    "U02H9RXPKGT": "Alexey Leshchuk",
+    "U08SKHD45U2": "Anastasia Kondratyuk",
+    "U06A6MV64R2": "andrei",
+    "U035U3KTFL5": "Anton Tyutin",
+    "U08MW9K5K0U": "Ban Markovic",
+    "UEXNGPDTR": "Boris Romanov",
+    "U0AD8TDM4DQ": "Constantin Chopin",
+    "U097GKF641M": "Cristian Matzov",
+    "U085J8B5TJ6": "Ed",
+    "U097GKK3UUX": "Georgi Todorov",
+    "U011Q8J1PDK": "Georgii Andrianov",
+    "U09QE0E0HHQ": "Giorgio Sarno",
+    "U088WHYP2P6": "Gvantsa Nebadze",
+    "U0965UA3XQ8": "maksim",
+    "U08EFQCMJ3U": "Paweł",
+    "U09T69U1Y5V": "Sebastian",
+    "USMQ8CRU6": "Semyon Vlasov",
+    "U04SBH53P9C": "Sergei Mironov",
+    "U0821BRMJ4R": "Stan Khvo",
+    "U098DPA85PY": "Wojciech Klarowski",
+    "U09MF4SB7C2": "Xhonino (John)",
+    
+    # == @brand-team ==
+    "U07SR89J8NA": "Artiom Zverev",
+    "U089EU49X7B": "Minju Song",
+    
+    # == Others ==
+    "U068KKKNP9R": "dmytro 'kino' klochko"
+}
+
+# Бот сам соберет все ключи (ID) в список для проверок
+TEAM_USER_IDS = list(TEAM_MAPPING.keys())
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -91,24 +125,63 @@ def check_missing_reports():
         return
 
     today = date.today().isoformat()
+    VACATIONS_CHANNEL_ID = "CJS19HLG1"
     
     try:
-        # Fetch reports for today from Supabase
+        # 1. Получаем тех, кто УЖЕ отписался
         response = supabase.table("standup_reports").select("user_id").eq("date", today).execute()
         reported_users = {row["user_id"] for row in response.data}
         
-        missing_users = [uid for uid in TEAM_USER_IDS if uid not in reported_users]
+        # 2. Идем в канал #vacations
+        vacation_users = set()
+        try:
+            yesterday_ts = time.time() - 24 * 3600
+            history = app.client.conversations_history(
+                channel=VACATIONS_CHANNEL_ID,
+                oldest=str(yesterday_ts)
+            )
+            
+            for msg in history.get("messages", []):
+                # Ищем сообщение от бота Vacation Tracker
+                if msg.get("bot_id") or msg.get("app_id"):
+                    text = msg.get("text", "")
+                    
+                    # Проверяем каждого юзера из команды: есть ли его имя в тексте?
+                    for uid, name in TEAM_MAPPING.items():
+                        if name.lower() in text.lower():
+                            vacation_users.add(uid)
+                            
+            logger.info(f"Users on vacation today: {vacation_users}")
+        except Exception as e:
+            logger.error(f"Error fetching vacations channel history: {e}")
+
+        # 3. Вычисляем должников
+        missing_users = [
+            uid for uid in TEAM_USER_IDS 
+            if uid not in reported_users and uid not in vacation_users
+        ]
         
+        # 4. Мемный пинг
         if missing_users:
+            MEMES = [
+                "I am once again asking for your daily updates... 🧤",
+                "Error 404: Standup reports not found. 🤖",
+                "Where is the standup, Lebowski?! 🎳",
+                "Git push origin standup_report — waiting for your statuses! 🐙",
+                "The 12:00 sync is approaching fast! Drop your updates! ⏳",
+                "Houston, we have a problem. Не вижу ваших отчетов! 🚀"
+            ]
+            meme = random.choice(MEMES)
             mentions = " ".join([f"<@{uid}>" for uid in missing_users])
+            
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text=f"Hey {mentions}, waiting for your update! ⏳"
+                text=f"Hey {mentions}! {meme}"
             )
-            logger.info(f"Reminded users: {missing_users}")
+            logger.info(f"Reminded missing users: {missing_users}")
         else:
-            logger.info("All users have reported!")
+            logger.info("All active users have reported. No reminders needed!")
             
     except Exception as e:
         logger.error(f"Error checking missing reports: {e}")
@@ -200,8 +273,9 @@ def main():
         except Exception as e:
             logger.warning(f"Could not restore bot state: {e}")
 
-    # -------- СТРОЧКА ДЛЯ ТЕСТА --------
+    # -------- СТРОЧКИ ДЛЯ ТЕСТА --------
     post_daily_thread()
+    check_missing_reports()
     # -----------------------------------
 
     # Start Slack Socket Mode
