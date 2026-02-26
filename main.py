@@ -7,6 +7,7 @@ import random
 import time
 
 # Third-party imports
+import requests
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from supabase import create_client, Client
@@ -25,6 +26,7 @@ SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
+VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
 
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
@@ -77,51 +79,80 @@ def get_supabase_client():
 app = None
 supabase = None
 
+VACATION_TRACKER_API_URL = "https://api.vacationtracker.io"
+
 def get_vacation_users():
+    """Get users currently on vacation via the Vacation Tracker API."""
     vacation_users = set()
-    if not app:
-        return "error"
+
+    if not VACATION_TRACKER_API_KEY:
+        logger.warning("VACATION_TRACKER_API_KEY not set, skipping vacation check")
+        return vacation_users
+
+    today = date.today().isoformat()
+
+    # Reverse mapping: lowercase name -> Slack user ID
+    name_to_uid = {name.lower(): uid for uid, name in TEAM_MAPPING.items()}
+
     try:
-        # Only fetch today's messages from the vacation tracker channel
-        today_start = datetime.combine(date.today(), datetime.min.time()).timestamp()
-        history = app.client.conversations_history(
-            channel="CJS19HLG1",  # Vacation Tracker channel
-            oldest=str(today_start),
-            limit=10
-        )
+        headers = {
+            "x-api-key": VACATION_TRACKER_API_KEY,
+            "Content-Type": "application/json",
+        }
 
-        messages = history.get("messages", [])
-        logger.info(f"Vacation channel: found {len(messages)} messages from today")
+        next_token = None
+        page = 0
 
-        for msg in messages:
-            if msg.get("bot_id") or msg.get("app_id"):
-                # Extract readable text from message (text + attachments + blocks)
-                text_parts = []
-                if msg.get("text"):
-                    text_parts.append(msg["text"])
-                for att in msg.get("attachments", []):
-                    for field in ("text", "fallback", "pretext", "title"):
-                        if att.get(field):
-                            text_parts.append(att[field])
-                for block in msg.get("blocks", []):
-                    block_text = block.get("text", {})
-                    if isinstance(block_text, dict) and block_text.get("text"):
-                        text_parts.append(block_text["text"])
-                    elif isinstance(block_text, str):
-                        text_parts.append(block_text)
+        while True:
+            page += 1
+            params = {
+                "startDate": today,
+                "endDate": today,
+                "status": "APPROVED",
+                "expand": "user",
+            }
+            if next_token:
+                params["nextToken"] = next_token
 
-                readable_text = " ".join(text_parts).lower()
-                logger.info(f"Vacation bot message: {readable_text[:300]}...")
+            resp = requests.get(
+                f"{VACATION_TRACKER_API_URL}/v1/leaves",
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
-                for uid, name in TEAM_MAPPING.items():
-                    if name.lower() in readable_text:
-                        vacation_users.add(uid)
-                        logger.info(f"Found vacationer: {name}")
+            for leave in data.get("data", []):
+                # Only count approved leaves
+                if leave.get("status") != "APPROVED":
+                    continue
+
+                # Try nested user object (API may use "user" or "userUsers")
+                user_info = leave.get("user") or leave.get("userUsers") or {}
+                user_name = user_info.get("name", "").lower()
+
+                if user_name in name_to_uid:
+                    vacation_users.add(name_to_uid[user_name])
+                    logger.info(f"Found vacationer (API): {user_info.get('name')}")
+
+            next_token = data.get("nextToken")
+            if not next_token:
+                break
+
+            # Safety: max 10 pages
+            if page >= 10:
+                logger.warning("Vacation API: hit pagination limit (10 pages)")
+                break
 
         logger.info(f"Users on vacation today: {vacation_users}")
         return vacation_users
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Vacation Tracker API HTTP error: {e.response.status_code} — {e.response.text[:200]}")
+        return "error"
     except Exception as e:
-        logger.error(f"Error fetching vacations channel history: {e}")
+        logger.error(f"Error fetching vacations from API: {e}")
         return "error"
 
 def post_daily_thread():

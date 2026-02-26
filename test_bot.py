@@ -603,6 +603,188 @@ class TestMainFunction(unittest.TestCase):
 
 
 # ---------------------------------------------------------
+# TC-11: get_vacation_users — Vacation Tracker API
+# ---------------------------------------------------------
+class TestGetVacationUsers(unittest.TestCase):
+
+    def setUp(self):
+        self.original_api_key = bot_module.VACATION_TRACKER_API_KEY
+        bot_module.VACATION_TRACKER_API_KEY = "test-api-key"
+
+    def tearDown(self):
+        bot_module.VACATION_TRACKER_API_KEY = self.original_api_key
+
+    @patch('main.requests.get')
+    def test_returns_empty_set_without_api_key(self, mock_get):
+        """TC-11-01: Returns empty set when API key is not configured"""
+        bot_module.VACATION_TRACKER_API_KEY = None
+        result = bot_module.get_vacation_users()
+        self.assertEqual(result, set())
+        mock_get.assert_not_called()
+
+    @patch('main.requests.get')
+    def test_finds_vacationers_from_api(self, mock_get):
+        """TC-11-02: Correctly identifies team members on vacation"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "ok",
+            "nextToken": None,
+            "data": [
+                {
+                    "id": "leave-1",
+                    "userId": "vt-user-1",
+                    "status": "APPROVED",
+                    "startDate": "2026-02-26",
+                    "endDate": "2026-02-27",
+                    "user": {"name": "Anton Tyutin"},
+                },
+                {
+                    "id": "leave-2",
+                    "userId": "vt-user-2",
+                    "status": "APPROVED",
+                    "startDate": "2026-02-26",
+                    "endDate": "2026-02-28",
+                    "user": {"name": "Gvantsa Nebadze"},
+                },
+            ],
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = bot_module.get_vacation_users()
+
+        self.assertIn("U035U3KTFL5", result)  # Anton Tyutin
+        self.assertIn("U088WHYP2P6", result)  # Gvantsa Nebadze
+        self.assertEqual(len(result), 2)
+
+    @patch('main.requests.get')
+    def test_ignores_non_approved_leaves(self, mock_get):
+        """TC-11-03: Only approved leaves are counted"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "ok",
+            "nextToken": None,
+            "data": [
+                {
+                    "id": "leave-1",
+                    "status": "APPROVED",
+                    "user": {"name": "Anton Tyutin"},
+                },
+                {
+                    "id": "leave-2",
+                    "status": "PENDING",
+                    "user": {"name": "Gvantsa Nebadze"},
+                },
+                {
+                    "id": "leave-3",
+                    "status": "DENIED",
+                    "user": {"name": "Ed"},
+                },
+            ],
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = bot_module.get_vacation_users()
+
+        self.assertIn("U035U3KTFL5", result)  # Anton — APPROVED
+        self.assertNotIn("U088WHYP2P6", result)  # Gvantsa — PENDING
+        self.assertNotIn("U085J8B5TJ6", result)  # Ed — DENIED
+        self.assertEqual(len(result), 1)
+
+    @patch('main.requests.get')
+    def test_handles_pagination(self, mock_get):
+        """TC-11-04: Follows nextToken for paginated results"""
+        page1 = MagicMock()
+        page1.status_code = 200
+        page1.json.return_value = {
+            "status": "ok",
+            "nextToken": "page2token",
+            "data": [{"id": "l1", "status": "APPROVED", "user": {"name": "Anton Tyutin"}}],
+        }
+        page1.raise_for_status = MagicMock()
+
+        page2 = MagicMock()
+        page2.status_code = 200
+        page2.json.return_value = {
+            "status": "ok",
+            "nextToken": None,
+            "data": [{"id": "l2", "status": "APPROVED", "user": {"name": "Ed"}}],
+        }
+        page2.raise_for_status = MagicMock()
+
+        mock_get.side_effect = [page1, page2]
+
+        result = bot_module.get_vacation_users()
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertIn("U035U3KTFL5", result)  # Anton
+        self.assertIn("U085J8B5TJ6", result)  # Ed
+
+    @patch('main.requests.get')
+    def test_returns_error_on_http_failure(self, mock_get):
+        """TC-11-05: Returns 'error' on API HTTP errors"""
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
+        http_error = bot_module.requests.exceptions.HTTPError(response=mock_response)
+        mock_response.raise_for_status.side_effect = http_error
+        mock_get.return_value = mock_response
+
+        result = bot_module.get_vacation_users()
+        self.assertEqual(result, "error")
+
+    @patch('main.requests.get')
+    def test_returns_error_on_network_failure(self, mock_get):
+        """TC-11-06: Returns 'error' on network errors"""
+        mock_get.side_effect = Exception("Connection refused")
+
+        result = bot_module.get_vacation_users()
+        self.assertEqual(result, "error")
+
+    @patch('main.requests.get')
+    def test_sends_correct_headers_and_params(self, mock_get):
+        """TC-11-07: Sends correct API key header and date params"""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"status": "ok", "data": [], "nextToken": None}
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        bot_module.get_vacation_users()
+
+        mock_get.assert_called_once()
+        call_kwargs = mock_get.call_args[1]
+        self.assertEqual(call_kwargs['headers']['x-api-key'], 'test-api-key')
+        self.assertEqual(call_kwargs['params']['startDate'], date.today().isoformat())
+        self.assertEqual(call_kwargs['params']['endDate'], date.today().isoformat())
+        self.assertEqual(call_kwargs['params']['status'], 'APPROVED')
+        self.assertEqual(call_kwargs['params']['expand'], 'user')
+        self.assertEqual(call_kwargs['timeout'], 10)
+
+    @patch('main.requests.get')
+    def test_ignores_unknown_users(self, mock_get):
+        """TC-11-08: Users not in TEAM_MAPPING are silently skipped"""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "status": "ok",
+            "nextToken": None,
+            "data": [
+                {"id": "l1", "status": "APPROVED", "user": {"name": "Unknown Person"}},
+                {"id": "l2", "status": "APPROVED", "user": {"name": "Anton Tyutin"}},
+            ],
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = bot_module.get_vacation_users()
+
+        self.assertEqual(len(result), 1)
+        self.assertIn("U035U3KTFL5", result)  # Only Anton
+
+
+# ---------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------
 if __name__ == '__main__':
@@ -619,6 +801,7 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestCheckMissingReportsExtended))
     suite.addTests(loader.loadTestsFromTestCase(TestHandleMessageEdgeCases))
     suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
+    suite.addTests(loader.loadTestsFromTestCase(TestGetVacationUsers))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
