@@ -29,7 +29,7 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
 
-# Маппинг: Slack User ID -> Имя, как оно пишется в Vacation Tracker
+# Mapping: Slack User ID -> Name as it appears in Vacation Tracker
 TEAM_MAPPING = {
     # == @eng-team ==
     "U02H9RXPKGT": "Alexey Leshchuk",
@@ -62,8 +62,7 @@ TEAM_MAPPING = {
     "U068KKKNP9R": "dmytro 'kino' klochko"
 }
 
-# Бот сам соберет все ключи (ID) в список для проверок должников
-# Исключаем ID CEO (@dk - U068KKKNP9R)
+# Collect all user IDs for report tracking, excluding CEO (@dk - U068KKKNP9R)
 TEAM_USER_IDS = [uid for uid in TEAM_MAPPING.keys() if uid != "U068KKKNP9R"]
 
 logging.basicConfig(level=logging.INFO)
@@ -83,26 +82,42 @@ def get_vacation_users():
     if not app:
         return "error"
     try:
-        # Убрали привязку ко времени! Просто просим последние 10 сообщений
+        # Only fetch today's messages from the vacation tracker channel
+        today_start = datetime.combine(date.today(), datetime.min.time()).timestamp()
         history = app.client.conversations_history(
-            channel="CJS19HLG1",  # ПРОВЕРЬ ЭТОТ ID В НАСТРОЙКАХ КАНАЛА!
-            limit=10 
+            channel="CJS19HLG1",  # Vacation Tracker channel
+            oldest=str(today_start),
+            limit=10
         )
-        
+
         messages = history.get("messages", [])
-        logger.info(f"DEBUG: Всего найдено сообщений в канале (без фильтра времени): {len(messages)}")
-        
+        logger.info(f"Vacation channel: found {len(messages)} messages from today")
+
         for msg in messages:
             if msg.get("bot_id") or msg.get("app_id"):
-                full_msg_text = json.dumps(msg, ensure_ascii=False).lower()
-                
-                logger.info(f"RAW BOT MSG: {full_msg_text[:300]}...")
-                
+                # Extract readable text from message (text + attachments + blocks)
+                text_parts = []
+                if msg.get("text"):
+                    text_parts.append(msg["text"])
+                for att in msg.get("attachments", []):
+                    for field in ("text", "fallback", "pretext", "title"):
+                        if att.get(field):
+                            text_parts.append(att[field])
+                for block in msg.get("blocks", []):
+                    block_text = block.get("text", {})
+                    if isinstance(block_text, dict) and block_text.get("text"):
+                        text_parts.append(block_text["text"])
+                    elif isinstance(block_text, str):
+                        text_parts.append(block_text)
+
+                readable_text = " ".join(text_parts).lower()
+                logger.info(f"Vacation bot message: {readable_text[:300]}...")
+
                 for uid, name in TEAM_MAPPING.items():
-                    if name.lower() in full_msg_text:
+                    if name.lower() in readable_text:
                         vacation_users.add(uid)
-                        logger.info(f"✅ Нашли отпускника в тексте: {name}")
-                        
+                        logger.info(f"Found vacationer: {name}")
+
         logger.info(f"Users on vacation today: {vacation_users}")
         return vacation_users
     except Exception as e:
@@ -137,34 +152,34 @@ def post_daily_thread():
         daily_thread_ts = response["ts"]
         logger.info(f"Posted daily thread: {daily_thread_ts}")
         
-        # Сохраняем ts в базу
+        # Save thread timestamp to database
         if supabase:
             try:
                 supabase.table("bot_state").upsert({"key": "daily_thread_ts", "value": daily_thread_ts}).execute()
             except Exception as e:
                 logger.warning(f"Could not save bot state: {e}")
         
-        # ОТДЕЛЬНЫЙ ПОСТ ПРО ОТПУСКНИКОВ СРАЗУ ПОСЛЕ ТРЕДА
+        # Post vacation status right after the thread
         vacations = get_vacation_users()
         
         if vacations == "error":
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="⚠️ _Не удалось проверить отпуска (ошибка доступа к каналу или API)._"
+                text="⚠️ _Failed to check vacations (channel or API access error)._"
             )
-        elif vacations:  # Если отпускники нашлись
+        elif vacations:
             mentions = ", ".join([f"<@{uid}>" for uid in vacations])
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text=f"🌴 *Сегодня отсутствуют (Vacation/Off):* {mentions}\n_Хорошего отдыха!_"
+                text=f"🌴 *Out today (Vacation/Off):* {mentions}\n_Enjoy your time off!_"
             )
-        else:  # Если множество пустое
+        else:
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="🌴 *Сегодня все в строю!* (Отпускников не найдено)"
+                text="🌴 *Everyone's in today!* (No one on vacation)"
             )
             
     except Exception as e:
@@ -183,22 +198,22 @@ def check_missing_reports():
     today = date.today().isoformat()
     
     try:
-        # 1. Получаем тех, кто УЖЕ отписался
+        # 1. Get users who already reported
         response = supabase.table("standup_reports").select("user_id").eq("date", today).execute()
         reported_users = {row["user_id"] for row in response.data}
         
-        # 2. Получаем отпускников через нашу новую функцию
+        # 2. Get users on vacation
         vacation_users = get_vacation_users()
         if vacation_users == "error":
-            vacation_users = set()  # Если ошибка, считаем, что отпускников нет, чтобы не сломать код
+            vacation_users = set()  # On error, assume no vacations to avoid breaking the flow
 
-        # 3. Вычисляем должников (берем TEAM_USER_IDS, где уже нет CEO)
+        # 3. Find users who haven't reported (TEAM_USER_IDS already excludes CEO)
         missing_users = [
             uid for uid in TEAM_USER_IDS 
             if uid not in reported_users and uid not in vacation_users
         ]
         
-        # 4. Мемный пинг
+        # 4. Send reminder with a meme
         if missing_users:
             MEMES = [
                 "I am once again asking for your daily updates... 🧤",
@@ -206,7 +221,7 @@ def check_missing_reports():
                 "Where is the standup, Lebowski?! 🎳",
                 "Git push origin standup_report — waiting for your statuses! 🐙",
                 "The 12:00 sync is approaching fast! Drop your updates! ⏳",
-                "Houston, we have a problem. Не вижу ваших отчетов! 🚀"
+                "Houston, we have a problem. Can't see your reports! 🚀"
             ]
             meme = random.choice(MEMES)
             mentions = " ".join([f"<@{uid}>" for uid in missing_users])
@@ -247,19 +262,19 @@ def register_events(app_instance):
                 return
 
             try:
-                # 1. Ищем, есть ли уже отчет от этого юзера за сегодня
+                # 1. Check if this user already reported today
                 existing_record = supabase.table("standup_reports").select("raw_text").eq("user_id", user_id).eq("date", today).execute()
                 
                 if existing_record.data:
-                    # Если отчет уже есть, склеиваем старый текст с новым
+                    # Report exists — append new text to existing
                     old_text = existing_record.data[0]["raw_text"]
                     final_text = f"{old_text}\n\n[Addition:]:\n{text}"
                     
-                    # Обновляем существующую запись
+                    # Update existing record
                     supabase.table("standup_reports").update({"raw_text": final_text}).eq("user_id", user_id).eq("date", today).execute()
                     logger.info(f"Updated existing report for {user_id}")
                 else:
-                    # Если отчета еще нет, создаем новую запись
+                    # No report yet — create new record
                     data = {
                         "user_id": user_id,
                         "date": today,
@@ -269,7 +284,7 @@ def register_events(app_instance):
                     supabase.table("standup_reports").insert(data).execute()
                     logger.info(f"Inserted new report for {user_id}")
                 
-                # Ставим галочку на сообщение в Slack
+                # Add checkmark reaction to the message
                 app_instance.client.reactions_add(
                     channel=CHANNEL_ID,
                     name="white_check_mark",
@@ -310,7 +325,7 @@ def main():
         except Exception as e:
             logger.warning(f"Could not restore bot state: {e}")
 
-    # -------- СТРОЧКИ ДЛЯ ТЕСТА --------
+    # -------- TEST LINES --------
     post_daily_thread()
     check_missing_reports()
     # -----------------------------------
