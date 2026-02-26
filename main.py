@@ -162,13 +162,23 @@ def post_daily_thread():
         logger.error("App or CHANNEL_ID not initialized")
         return
 
-    phrase = random.choice(OPENING_PHRASES)
+    # Золотые цитаты Майкла Скотта для бодрого утра
+    MICHAEL_SCOTT_GREETINGS = [
+        "Good morning, Dunder Mifflin! ☕",
+        "“You miss 100% of the shots you don't take. – Wayne Gretzky” – Michael Scott. Time for standup! 🏒",
+        "I’m an early bird, and I’m a night owl, so I’m wise, and I have worms. Morning team! 🦉",
+        "Well, well, well, how the turntables... It's standup time! 💿",
+        "Dunder Mifflin, this is Michael. Drop your daily updates! 🏢",
+        "I am Beyoncé, always. And you are my favorite team. Standup time! 👑"
+    ]
+    phrase = random.choice(MICHAEL_SCOTT_GREETINGS)
     
     try:
+        # Убрали упоминание "12:00 sync", оставили просто дедлайн
         standup_text = (
             f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X>\n\n"
             "*Daily — status thread* 💥\n"
-            "*Please reply here before the 12:00 sync with:*\n"
+            "*Please reply here before 12:00 with:*\n"
             "*Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
             "*Today (by EOD or days remaining):* what you'll complete / how many days left\n"
             "*Blockers / Risks:* who/what is needed to unblock\n"
@@ -176,6 +186,7 @@ def post_daily_thread():
             "*If you can't finish something today, state the time remaining*\n\n"
             "cc: <@U068KKKNP9R>"
         )
+        
         response = app.client.chat_postMessage(
             channel=CHANNEL_ID,
             text=standup_text
@@ -247,12 +258,17 @@ def check_missing_reports():
         # 4. Send reminder with a meme
         if missing_users:
             MEMES = [
-                "I am once again asking for your daily updates... 🧤",
-                "Error 404: Standup reports not found. 🤖",
-                "Where is the standup, Lebowski?! 🎳",
-                "Git push origin standup_report — waiting for your statuses! 🐙",
-                "The 12:00 sync is approaching fast! Drop your updates! ⏳",
-                "Houston, we have a problem. Can't see your reports! 🚀"
+                "I DECLARE... STANDUP! 📢\nhttps://media.giphy.com/media/8nM6YNtvjuezzD7DNh/giphy.gif",
+                
+                "NO GOD! PLEASE NO! Забыл написать статус? 😱\nhttps://media.giphy.com/media/JYZ397GsZ5NcA/giphy.gif",
+                
+                "Would I rather be feared or loved? Easy. Both. I want people to be afraid of how much they love my standup reminders. ☕\nhttps://media.giphy.com/media/hTfhyOtBcBWLeGnMpp/giphy.gif",
+                
+                "Prison Mike says: in prison you are somebody's b*tch. Here, you just need to write your status! 🧣\nhttps://media.giphy.com/media/aZeFIjI9hNcJ2/giphy.gif",
+                
+                "Я, когда жду ваши апдейты дольше 12:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
+                
+                "If I don't have some updates soon, I might die. 🍰\nhttps://media.giphy.com/media/5wWf7H89PisM6An8UAU/giphy.gif"
             ]
             meme = random.choice(MEMES)
             mentions = " ".join([f"<@{uid}>" for uid in missing_users])
@@ -318,7 +334,7 @@ def register_events(app_instance):
                 # Add checkmark reaction to the message
                 app_instance.client.reactions_add(
                     channel=CHANNEL_ID,
-                    name="white_check_mark",
+                    name="blue_heart",
                     timestamp=ts
                 )
                 
@@ -358,6 +374,7 @@ def main():
 
     # -------- TEST LINES --------
     post_daily_thread()
+    time.sleep(2)  # Пауза, чтобы Slack не съел сообщение от спам-фильтра
     check_missing_reports()
     # -----------------------------------
 
