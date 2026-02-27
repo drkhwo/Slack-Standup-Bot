@@ -356,8 +356,15 @@ def main():
     # Schedule jobs
     scheduler = BackgroundScheduler()
     # Using 'cron' triggers
-    scheduler.add_job(post_daily_thread, 'cron', hour=17, minute=19)
-    scheduler.add_job(check_missing_reports, 'cron', hour=11, minute=30)
+    # 1. Основной пост-тред в 09:04 CET (08:04 UTC)
+    scheduler.add_job(post_daily_thread, 'cron', hour=8, minute=4)
+    
+    # 2. Первое напоминание должникам в 11:30 CET (10:30 UTC)
+    scheduler.add_job(check_missing_reports, 'cron', hour=10, minute=30)
+    
+    # 3. Второе напоминание должникам в 17:00 CET (16:00 UTC)
+    scheduler.add_job(check_missing_reports, 'cron', hour=16, minute=0)
+    
     scheduler.start()
     
     logger.info("Bot started! 🤖")
@@ -373,9 +380,9 @@ def main():
             logger.warning(f"Could not restore bot state: {e}")
 
     # -------- TEST LINES --------
-    post_daily_thread()
-    time.sleep(2)  # Пауза, чтобы Slack не съел сообщение от спам-фильтра
-    check_missing_reports()
+    # post_daily_thread()
+    # time.sleep(2)  # Пауза, чтобы Slack не съел сообщение от спам-фильтра
+    # check_missing_reports()
     # -----------------------------------
 
     # Start Slack Socket Mode
