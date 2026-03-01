@@ -162,7 +162,7 @@ def post_daily_thread():
         logger.error("App or CHANNEL_ID not initialized")
         return
 
-    # Золотые цитаты Майкла Скотта для бодрого утра
+    # Michael Scott greetings for a cheerful morning
     MICHAEL_SCOTT_GREETINGS = [
         "Good morning, Dunder Mifflin! ☕",
         "“You miss 100% of the shots you don't take. – Wayne Gretzky” – Michael Scott. Time for standup! 🏒",
@@ -174,7 +174,7 @@ def post_daily_thread():
     phrase = random.choice(MICHAEL_SCOTT_GREETINGS)
     
     try:
-        # Убрали упоминание "12:00 sync", оставили просто дедлайн
+        # Removed "12:00 sync" mention, kept just the deadline
         standup_text = (
             f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X>\n\n"
             "*Daily — status thread* 💥\n"
@@ -259,15 +259,15 @@ def check_missing_reports():
         if missing_users:
             MEMES = [
                 "I DECLARE... STANDUP! 📢\nhttps://media.giphy.com/media/8nM6YNtvjuezzD7DNh/giphy.gif",
-                
-                "NO GOD! PLEASE NO! Забыл написать статус? 😱\nhttps://media.giphy.com/media/JYZ397GsZ5NcA/giphy.gif",
-                
+
+                "NO GOD! PLEASE NO! Forgot to write your status? 😱\nhttps://media.giphy.com/media/vyTnNTrs3wqQ0UIvwE/giphy.gif",
+
                 "Would I rather be feared or loved? Easy. Both. I want people to be afraid of how much they love my standup reminders. ☕\nhttps://media.giphy.com/media/hTfhyOtBcBWLeGnMpp/giphy.gif",
-                
+
                 "Prison Mike says: in prison you are somebody's b*tch. Here, you just need to write your status! 🧣\nhttps://media.giphy.com/media/aZeFIjI9hNcJ2/giphy.gif",
-                
-                "Я, когда жду ваши апдейты дольше 12:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
-                
+
+                "Me waiting for your updates past 12:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
+
                 "If I don't have some updates soon, I might die. 🍰\nhttps://media.giphy.com/media/5wWf7H89PisM6An8UAU/giphy.gif"
             ]
             meme = random.choice(MEMES)
@@ -356,14 +356,14 @@ def main():
     # Schedule jobs
     scheduler = BackgroundScheduler()
     # Using 'cron' triggers
-    # 1. Основной пост-тред в 09:04 CET (08:04 UTC)
-    scheduler.add_job(post_daily_thread, 'cron', hour=8, minute=4)
-    
-    # 2. Первое напоминание должникам в 11:30 CET (10:30 UTC)
-    scheduler.add_job(check_missing_reports, 'cron', hour=10, minute=30)
-    
-    # 3. Второе напоминание должникам в 17:00 CET (16:00 UTC)
-    scheduler.add_job(check_missing_reports, 'cron', hour=16, minute=0)
+    # 1. Daily standup thread at 09:04 CET (08:04 UTC), weekdays only
+    scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=8, minute=4)
+
+    # 2. First reminder at 11:30 CET (10:30 UTC), weekdays only
+    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=10, minute=30)
+
+    # 3. Second reminder at 17:00 CET (16:00 UTC), weekdays only
+    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=16, minute=0)
     
     scheduler.start()
     
@@ -380,9 +380,9 @@ def main():
             logger.warning(f"Could not restore bot state: {e}")
 
     # -------- TEST LINES --------
-    # post_daily_thread()
-    # time.sleep(2)  # Пауза, чтобы Slack не съел сообщение от спам-фильтра
-    # check_missing_reports()
+    post_daily_thread()
+    time.sleep(2)  # Pause so Slack spam filter doesn't eat the message
+    check_missing_reports()
     # -----------------------------------
 
     # Start Slack Socket Mode

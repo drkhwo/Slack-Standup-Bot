@@ -125,15 +125,22 @@ class TestPostDailyThread(unittest.TestCase):
         self.assertEqual(bot_module.daily_thread_ts, "1234567890.123456")
 
     @patch('main.get_vacation_users', return_value=set())
-    def test_post_daily_thread_uses_opening_phrase(self, mock_vacation):
-        """TC-03-04: post_daily_thread() must use a phrase from OPENING_PHRASES"""
-        from phrases import OPENING_PHRASES
+    def test_post_daily_thread_uses_michael_scott_greeting(self, mock_vacation):
+        """TC-03-04: post_daily_thread() must use a Michael Scott greeting"""
+        MICHAEL_SCOTT_GREETINGS = [
+            "Good morning, Dunder Mifflin! ☕",
+            "\u201cYou miss 100% of the shots you don\u2019t take. \u2013 Wayne Gretzky\u201d \u2013 Michael Scott. Time for standup! 🏒",
+            "I'm an early bird, and I'm a night owl, so I'm wise, and I have worms. Morning team! 🦉",
+            "Well, well, well, how the turntables... It's standup time! 💿",
+            "Dunder Mifflin, this is Michael. Drop your daily updates! 🏢",
+            "I am Beyoncé, always. And you are my favorite team. Standup time! 👑"
+        ]
         bot_module.post_daily_thread()
         first_call_kwargs = self.mock_app.client.chat_postMessage.call_args_list[0][1]
         text = first_call_kwargs['text']
         self.assertTrue(
-            any(text.startswith(phrase) for phrase in OPENING_PHRASES),
-            f"Message text must start with one of OPENING_PHRASES"
+            any(text.startswith(phrase) for phrase in MICHAEL_SCOTT_GREETINGS),
+            f"Message text must start with one of MICHAEL_SCOTT_GREETINGS"
         )
 
     def test_post_daily_thread_skips_if_no_app(self):
@@ -278,7 +285,7 @@ class TestHandleMessageEvents(unittest.TestCase):
         self._call_handler(body)
         self.mock_app.client.reactions_add.assert_called_once_with(
             channel='C08UT7VP2TA',
-            name="white_check_mark",
+            name="blue_heart",
             timestamp="9999999999.000001"
         )
 
@@ -597,8 +604,8 @@ class TestMainFunction(unittest.TestCase):
         mock_supa.return_value = MagicMock()
         mock_app.client.chat_postMessage.return_value = {"ts": "123"}
         bot_module.main()
-        # Should have 2 jobs: post_daily_thread and check_missing_reports
-        self.assertEqual(mock_sched.add_job.call_count, 2)
+        # Should have 3 jobs: post_daily_thread + 2x check_missing_reports
+        self.assertEqual(mock_sched.add_job.call_count, 3)
         mock_sched.start.assert_called_once()
 
 

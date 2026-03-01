@@ -112,12 +112,21 @@ Run: `python -m pytest test_bot.py -v`
 
 ---
 
+## Maintenance Notes
+
+### Phrases & Memes
+- **MEMES** (reminder GIFs/phrases) and **MICHAEL_SCOTT_GREETINGS** in `main.py` should be reviewed and updated periodically — Giphy links can expire or become unavailable over time.
+- All user-facing text must be in **English only**.
+- **Next iteration:** phrase and meme generation will be handled via AI to keep content fresh automatically.
+
+---
+
 ## Known Limitations (MVP)
 
-- `TEAM_USER_IDS` захардкожен — нужна динамическая загрузка из Slack/Supabase
-- Нет веб-дашборда (фронтенд в scaffolding)
-- Нет команд бота (/standup, /skip, /summary)
-- Нет аналитики и трендов по отчётам
+- `TEAM_USER_IDS` is hardcoded — needs dynamic loading from Slack/Supabase
+- No web dashboard (frontend in scaffolding)
+- No bot slash commands (/standup, /skip, /summary)
+- No analytics or report trends
 - Single-channel only
 
 ---
