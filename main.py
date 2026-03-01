@@ -26,6 +26,7 @@ SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
+ALERT_CHANNEL_ID = os.environ.get("ALERT_CHANNEL_ID")  # Optional: mirror alerts to a test/monitoring channel
 VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
 
 # Global state to track the daily thread timestamp
@@ -80,6 +81,17 @@ app = None
 supabase = None
 
 VACATION_TRACKER_API_URL = "https://api.vacationtracker.io"
+
+
+def send_alert(text):
+    """Send a short notification to the monitoring/test channel (if configured)."""
+    if not app or not ALERT_CHANNEL_ID:
+        return
+    try:
+        app.client.chat_postMessage(channel=ALERT_CHANNEL_ID, text=text)
+    except Exception as e:
+        logger.warning(f"Could not send alert: {e}")
+
 
 def get_vacation_users():
     """Get users currently on vacation via the Vacation Tracker API."""
@@ -193,6 +205,10 @@ def post_daily_thread():
         )
         daily_thread_ts = response["ts"]
         logger.info(f"Posted daily thread: {daily_thread_ts}")
+
+        # Alert to monitoring channel
+        thread_link = f"https://slack.com/archives/{CHANNEL_ID}/p{daily_thread_ts.replace('.', '')}"
+        send_alert(f"✅ Daily standup thread posted → <{thread_link}|open thread>")
         
         # Save thread timestamp to database
         if supabase:
@@ -279,8 +295,10 @@ def check_missing_reports():
                 text=f"Hey {mentions}! {meme}"
             )
             logger.info(f"Reminded missing users: {missing_users}")
+            send_alert(f"⏰ Reminder sent to {len(missing_users)} people who haven't reported yet")
         else:
             logger.info("All active users have reported. No reminders needed!")
+            send_alert("🎉 All team members have reported — no reminders needed!")
             
     except Exception as e:
         logger.error(f"Error checking missing reports: {e}")
@@ -380,9 +398,9 @@ def main():
             logger.warning(f"Could not restore bot state: {e}")
 
     # -------- TEST LINES --------
-    post_daily_thread()
-    time.sleep(2)  # Pause so Slack spam filter doesn't eat the message
-    check_missing_reports()
+    # post_daily_thread()
+    # time.sleep(2)  # Pause so Slack spam filter doesn't eat the message
+    # check_missing_reports()
     # -----------------------------------
 
     # Start Slack Socket Mode

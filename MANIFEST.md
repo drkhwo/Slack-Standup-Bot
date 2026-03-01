@@ -87,7 +87,8 @@ Slack Standup Bot — бот для автоматизации ежедневн�
 | `SLACK_APP_TOKEN` | ✅ | App-Level Token for Socket Mode (xapp-...) |
 | `SUPABASE_URL` | ✅ | Supabase project URL |
 | `SUPABASE_KEY` | ✅ | Supabase anon/service key |
-| `CHANNEL_ID` | ✅ | Target Slack channel ID |
+| `CHANNEL_ID` | ✅ | Target Slack channel ID (production standup channel) |
+| `ALERT_CHANNEL_ID` | ❌ | Optional monitoring channel for bot status alerts |
 
 ---
 
@@ -133,8 +134,8 @@ Run: `python -m pytest test_bot.py -v`
 
 ## Deployment
 
-**Current:** Replit (autoscale)
-**Recommended free tier:** Railway.app / Render.com / Fly.io
+**Current:** Railway.app (production)
+**Important:** Only ONE instance should be running at a time to avoid duplicate posts.
 
 See `DEPLOY.md` for step-by-step instructions.
 

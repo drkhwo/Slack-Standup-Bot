@@ -130,8 +130,8 @@ class TestPostDailyThread(unittest.TestCase):
         MICHAEL_SCOTT_GREETINGS = [
             "Good morning, Dunder Mifflin! ☕",
             "\u201cYou miss 100% of the shots you don\u2019t take. \u2013 Wayne Gretzky\u201d \u2013 Michael Scott. Time for standup! 🏒",
-            "I'm an early bird, and I'm a night owl, so I'm wise, and I have worms. Morning team! 🦉",
-            "Well, well, well, how the turntables... It's standup time! 💿",
+            "I\u2019m an early bird, and I\u2019m a night owl, so I\u2019m wise, and I have worms. Morning team! 🦉",
+            "Well, well, well, how the turntables... It\u2019s standup time! 💿",
             "Dunder Mifflin, this is Michael. Drop your daily updates! 🏢",
             "I am Beyoncé, always. And you are my favorite team. Standup time! 👑"
         ]
@@ -455,7 +455,7 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         # Check that at least one emoji is present (any meme has one)
         import re
-        emoji_pattern = re.compile(r'[\U0001F300-\U0001F9FF]')
+        emoji_pattern = re.compile(r'[\u2600-\u27BF\U0001F300-\U0001F9FF]')
         self.assertTrue(emoji_pattern.search(call_kwargs['text']),
                         "Reminder message should contain an emoji")
 
