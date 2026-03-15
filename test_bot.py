@@ -125,22 +125,15 @@ class TestPostDailyThread(unittest.TestCase):
         self.assertEqual(bot_module.daily_thread_ts, "1234567890.123456")
 
     @patch('main.get_vacation_users', return_value=set())
-    def test_post_daily_thread_uses_michael_scott_greeting(self, mock_vacation):
-        """TC-03-04: post_daily_thread() must use a Michael Scott greeting"""
-        MICHAEL_SCOTT_GREETINGS = [
-            "Good morning, Dunder Mifflin! ☕",
-            "\u201cYou miss 100% of the shots you don\u2019t take. \u2013 Wayne Gretzky\u201d \u2013 Michael Scott. Time for standup! 🏒",
-            "I\u2019m an early bird, and I\u2019m a night owl, so I\u2019m wise, and I have worms. Morning team! 🦉",
-            "Well, well, well, how the turntables... It\u2019s standup time! 💿",
-            "Dunder Mifflin, this is Michael. Drop your daily updates! 🏢",
-            "I am Beyoncé, always. And you are my favorite team. Standup time! 👑"
-        ]
+    def test_post_daily_thread_uses_opening_phrase(self, mock_vacation):
+        """TC-03-04: post_daily_thread() must use a phrase from OPENING_PHRASES"""
+        from phrases import OPENING_PHRASES
         bot_module.post_daily_thread()
         first_call_kwargs = self.mock_app.client.chat_postMessage.call_args_list[0][1]
         text = first_call_kwargs['text']
         self.assertTrue(
-            any(text.startswith(phrase) for phrase in MICHAEL_SCOTT_GREETINGS),
-            f"Message text must start with one of MICHAEL_SCOTT_GREETINGS"
+            any(text.startswith(phrase) for phrase in OPENING_PHRASES),
+            f"Message text must start with one of OPENING_PHRASES"
         )
 
     def test_post_daily_thread_skips_if_no_app(self):
@@ -792,6 +785,182 @@ class TestGetVacationUsers(unittest.TestCase):
 
 
 # ---------------------------------------------------------
+# TC-13: send_deploy_notification()
+# ---------------------------------------------------------
+class TestSendDeployNotification(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        bot_module.app = self.mock_app
+        bot_module.ALERT_CHANNEL_ID = 'C_ALERT'
+
+    def test_sends_message_when_deploy_notify_set(self):
+        """TC-13-01: send_deploy_notification() sends to ALERT_CHANNEL_ID when DEPLOY_NOTIFY=1"""
+        with patch.dict('os.environ', {'DEPLOY_NOTIFY': '1'}):
+            bot_module.send_deploy_notification()
+        self.mock_app.client.chat_postMessage.assert_called_once()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertEqual(call_kwargs['channel'], 'C_ALERT')
+
+    def test_skips_when_deploy_notify_not_set(self):
+        """TC-13-02: send_deploy_notification() does nothing without DEPLOY_NOTIFY=1"""
+        env = {k: v for k, v in os.environ.items() if k != 'DEPLOY_NOTIFY'}
+        with patch.dict('os.environ', env, clear=True):
+            bot_module.send_deploy_notification()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_skips_when_deploy_notify_wrong_value(self):
+        """TC-13-03: send_deploy_notification() does nothing when DEPLOY_NOTIFY != '1'"""
+        with patch.dict('os.environ', {'DEPLOY_NOTIFY': 'true'}):
+            bot_module.send_deploy_notification()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_no_crash_without_alert_channel(self):
+        """TC-13-04: send_deploy_notification() does not crash if ALERT_CHANNEL_ID is not set"""
+        bot_module.ALERT_CHANNEL_ID = None
+        with patch.dict('os.environ', {'DEPLOY_NOTIFY': '1'}):
+            try:
+                bot_module.send_deploy_notification()
+            except Exception:
+                self.fail("must not raise when ALERT_CHANNEL_ID is None")
+
+    def test_no_crash_without_app(self):
+        """TC-13-05: send_deploy_notification() does not crash if app is not initialized"""
+        bot_module.app = None
+        with patch.dict('os.environ', {'DEPLOY_NOTIFY': '1'}):
+            try:
+                bot_module.send_deploy_notification()
+            except Exception:
+                self.fail("must not raise when app is None")
+
+
+# ---------------------------------------------------------
+# TC-12: Michael Scott motivational boost
+# ---------------------------------------------------------
+class TestMichaelScottBoost(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        self.mock_supabase = MagicMock()
+        bot_module.app = self.mock_app
+        bot_module.supabase = self.mock_supabase
+        bot_module.daily_thread_ts = "1234567890.123456"
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+        bot_module.boost_count_today = 0
+
+        # Mock DB: no existing record
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+        bot_module.register_events(self.mock_app)
+        event_decorator = self.mock_app.event.return_value
+        self.handler_func = event_decorator.call_args[0][0]
+
+    def _call_handler(self, body):
+        self.handler_func(body=body, logger=MagicMock())
+
+    def _standup_body(self):
+        return {"event": {
+            "user": "U999",
+            "text": "Yesterday: done X. Today: Y",
+            "ts": "9999999999.000001",
+            "thread_ts": "1234567890.123456",
+        }}
+
+    @patch('main.should_send_boost', return_value=True)
+    @patch('main.get_michael_quote', return_value="You miss 100% of the shots...")
+    def test_sends_quote_when_boost_triggered(self, mock_quote, mock_boost):
+        """TC-12-01: Michael Scott quote is posted when should_send_boost returns True"""
+        self._call_handler(self._standup_body())
+        calls = self.mock_app.client.chat_postMessage.call_args_list
+        texts = [c[1]['text'] for c in calls]
+        self.assertTrue(any("You miss 100%" in t for t in texts))
+
+    @patch('main.should_send_boost', return_value=True)
+    @patch('main.get_michael_quote', return_value="You miss 100% of the shots...")
+    def test_quote_sent_in_thread(self, mock_quote, mock_boost):
+        """TC-12-02: Quote is posted in the standup thread, not as a top-level message"""
+        self._call_handler(self._standup_body())
+        boost_calls = [
+            c for c in self.mock_app.client.chat_postMessage.call_args_list
+            if c[1].get('thread_ts') == "1234567890.123456"
+        ]
+        self.assertTrue(len(boost_calls) > 0)
+
+    @patch('main.should_send_boost', return_value=True)
+    @patch('main.get_michael_quote', return_value="Quote")
+    def test_boost_counter_increments(self, mock_quote, mock_boost):
+        """TC-12-03: boost_count_today increments after a quote is sent"""
+        bot_module.boost_count_today = 0
+        self._call_handler(self._standup_body())
+        self.assertEqual(bot_module.boost_count_today, 1)
+
+    @patch('main.should_send_boost', return_value=False)
+    def test_no_quote_when_boost_not_triggered(self, mock_boost):
+        """TC-12-04: No quote is posted when should_send_boost returns False"""
+        self._call_handler(self._standup_body())
+        # Only reactions_add should be called, not a quote message
+        # chat_postMessage should NOT be called with a quote text
+        mock_boost.assert_called_once_with(0)
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    @patch('main.should_send_boost', return_value=False)
+    def test_boost_counter_not_incremented_when_not_triggered(self, mock_boost):
+        """TC-12-05: boost_count_today stays at 0 when boost not triggered"""
+        bot_module.boost_count_today = 0
+        self._call_handler(self._standup_body())
+        self.assertEqual(bot_module.boost_count_today, 0)
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_boost_counter_resets_on_new_thread(self, mock_vacation):
+        """TC-12-06: boost_count_today resets to 0 when a new daily thread is posted"""
+        bot_module.boost_count_today = 2
+        self.mock_app.client.chat_postMessage.return_value = {"ts": "9999999999.000001"}
+        bot_module.post_daily_thread()
+        self.assertEqual(bot_module.boost_count_today, 0)
+
+    def test_should_send_boost_respects_max(self):
+        """TC-12-07: should_send_boost returns False when max_boosts reached"""
+        from phrases import should_send_boost
+        self.assertFalse(should_send_boost(3, max_boosts=3))
+        self.assertFalse(should_send_boost(10, max_boosts=3))
+
+    def test_should_send_boost_allows_below_max(self):
+        """TC-12-08: should_send_boost can return True when below max (probabilistic — seeded)"""
+        import random as rnd
+        from phrases import should_send_boost
+        # With random seeded to always return 0.0, probability check passes
+        with patch('phrases.random.random', return_value=0.0):
+            self.assertTrue(should_send_boost(0, max_boosts=3))
+            self.assertTrue(should_send_boost(2, max_boosts=3))
+
+    def test_michael_scott_quotes_not_empty(self):
+        """TC-12-09: MICHAEL_SCOTT_QUOTES list is non-empty"""
+        from phrases import MICHAEL_SCOTT_QUOTES
+        self.assertIsInstance(MICHAEL_SCOTT_QUOTES, list)
+        self.assertGreater(len(MICHAEL_SCOTT_QUOTES), 0)
+
+    def test_michael_scott_quotes_all_english(self):
+        """TC-12-10: All Michael Scott quotes are non-empty strings (no blank entries)"""
+        from phrases import MICHAEL_SCOTT_QUOTES
+        for q in MICHAEL_SCOTT_QUOTES:
+            self.assertIsInstance(q, str)
+            self.assertTrue(len(q.strip()) > 0, f"Blank quote found: {q!r}")
+
+    def test_get_michael_quote_returns_string(self):
+        """TC-12-11: get_michael_quote() returns a non-empty string"""
+        from phrases import get_michael_quote
+        result = get_michael_quote(include_gif=False)
+        self.assertIsInstance(result, str)
+        self.assertTrue(len(result.strip()) > 0)
+
+    def test_get_michael_quote_includes_gif_url(self):
+        """TC-12-12: get_michael_quote(include_gif=True) appends a GIF URL"""
+        from phrases import get_michael_quote
+        result = get_michael_quote(include_gif=True)
+        self.assertIn("giphy.com", result)
+
+
+# ---------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------
 if __name__ == '__main__':
@@ -809,6 +978,8 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestHandleMessageEdgeCases))
     suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
     suite.addTests(loader.loadTestsFromTestCase(TestGetVacationUsers))
+    suite.addTests(loader.loadTestsFromTestCase(TestSendDeployNotification))
+    suite.addTests(loader.loadTestsFromTestCase(TestMichaelScottBoost))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

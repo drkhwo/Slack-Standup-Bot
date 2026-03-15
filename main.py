@@ -2,6 +2,7 @@ import os
 import logging
 import re
 import json
+import threading
 from datetime import date, datetime
 import random
 import time
@@ -15,7 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
 # Local imports
-from phrases import OPENING_PHRASES
+from phrases import get_opening_phrase, get_michael_quote, should_send_boost
 
 # Load environment variables
 load_dotenv()
@@ -31,6 +32,10 @@ VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
 
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
+# Counter for Michael Scott motivational quotes sent today (resets each new thread)
+boost_count_today: int = 0
+# Lock protecting boost_count_today against concurrent Slack Bolt thread-pool access
+boost_lock = threading.Lock()
 
 # Mapping: Slack User ID -> Name as it appears in Vacation Tracker
 TEAM_MAPPING = {
@@ -168,22 +173,15 @@ def get_vacation_users():
         return "error"
 
 def post_daily_thread():
-    global daily_thread_ts
-    
+    global daily_thread_ts, boost_count_today
+
     if not app or not CHANNEL_ID:
         logger.error("App or CHANNEL_ID not initialized")
         return
 
-    # Michael Scott greetings for a cheerful morning
-    MICHAEL_SCOTT_GREETINGS = [
-        "Good morning, Dunder Mifflin! ☕",
-        "“You miss 100% of the shots you don't take. – Wayne Gretzky” – Michael Scott. Time for standup! 🏒",
-        "I’m an early bird, and I’m a night owl, so I’m wise, and I have worms. Morning team! 🦉",
-        "Well, well, well, how the turntables... It's standup time! 💿",
-        "Dunder Mifflin, this is Michael. Drop your daily updates! 🏢",
-        "I am Beyoncé, always. And you are my favorite team. Standup time! 👑"
-    ]
-    phrase = random.choice(MICHAEL_SCOTT_GREETINGS)
+    # Reset daily boost counter for the new thread
+    boost_count_today = 0
+    phrase = get_opening_phrase()
     
     try:
         # Removed "12:00 sync" mention, kept just the deadline
@@ -306,7 +304,7 @@ def check_missing_reports():
 def register_events(app_instance):
     @app_instance.event("message")
     def handle_message_events(body, logger):
-        global daily_thread_ts
+        global daily_thread_ts, boost_count_today
         event = body["event"]
         
         # Check if it's a reply in the daily thread
@@ -355,9 +353,41 @@ def register_events(app_instance):
                     name="blue_heart",
                     timestamp=ts
                 )
-                
+
+                # Randomly post a Michael Scott motivational quote (max 3/day).
+                # Read-modify-write is guarded by boost_lock to prevent races
+                # under Slack Bolt's internal thread pool.
+                with boost_lock:
+                    send_boost = should_send_boost(boost_count_today)
+                    if send_boost:
+                        boost_count_today += 1
+                        boost_number = boost_count_today
+
+                if send_boost:
+                    quote = get_michael_quote(include_gif=True)
+                    app_instance.client.chat_postMessage(
+                        channel=CHANNEL_ID,
+                        thread_ts=daily_thread_ts,
+                        text=quote
+                    )
+                    logger.info(f"Sent Michael Scott boost #{boost_number}")
+
             except Exception as e:
                 logger.error(f"Error saving report: {e}")
+
+def send_deploy_notification():
+    """Send a one-time deployment confirmation to the alert channel.
+    Only fires when the DEPLOY_NOTIFY=1 env var is set, so restarts and
+    crash-recoveries don't spam the channel.
+    """
+    if os.environ.get("DEPLOY_NOTIFY") != "1":
+        return
+    send_alert(
+        "🚀 Bot deployed successfully!\n"
+        "Current logic version: *Michael Scott Mode* (max 3 quotes/day)."
+    )
+    logger.info("Deploy notification sent.")
+
 
 def main():
     global app, supabase, daily_thread_ts
@@ -397,11 +427,7 @@ def main():
         except Exception as e:
             logger.warning(f"Could not restore bot state: {e}")
 
-    # -------- TEST LINES --------
-    # post_daily_thread()
-    # time.sleep(2)  # Pause so Slack spam filter doesn't eat the message
-    # check_missing_reports()
-    # -----------------------------------
+    send_deploy_notification()
 
     # Start Slack Socket Mode
     handler = SocketModeHandler(app, SLACK_APP_TOKEN)
