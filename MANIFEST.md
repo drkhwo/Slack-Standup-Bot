@@ -1,11 +1,11 @@
 # Slack Standup Bot — Project Manifest
 
-**Version:** 0.2.0
-**Updated:** 2026-03-25
+**Version:** 0.3.0
+**Updated:** 2026-04-02
 
 ## Overview
 
-Slack Standup Bot automates a daily Slack status thread for a fixed team roster. It posts the thread, collects replies, persists reports in Supabase, marks confirmed messages with a reaction, checks Vacation Tracker to avoid false reminders, and pings only the people who are still missing.
+Slack Standup Bot automates a daily Slack status thread for a fixed team roster. It posts the thread, collects replies, persists reports in Supabase, marks confirmed messages with a reaction, checks Vacation Tracker to avoid false reminders, posts daytime reminders for missing updates, and escalates unresolved missing reports at the end of the day.
 
 ## Architecture
 
@@ -49,13 +49,24 @@ Slack Socket Mode events
 - Excludes users on leave from reminder targeting
 - Posts a reminder in the existing standup thread for anyone still missing
 
+### End-of-day escalation
+
+- Runs a final check at the end of the workday
+- Reuses the same missing-user calculation as the daytime reminders
+- Posts in the existing standup thread only when users are still missing
+- Tags only `@dk`
+- Includes a dramatic sad GIF for visibility
+
 ### Scheduling
 
 Configured in `main.py`:
 
-- Weekdays at `08:04` — post daily thread
-- Weekdays at `10:30` — first reminder
-- Weekdays at `16:00` — second reminder
+Timezone: `Europe/Paris`
+
+- Weekdays at `09:04` — post daily thread
+- Weekdays at `11:30` — first reminder
+- Weekdays at `17:00` — second reminder
+- Weekdays at `21:00` — final missing-report escalation
 
 ## Database
 
@@ -106,7 +117,7 @@ Run:
 python -m pytest test_bot.py -v
 ```
 
-Current verified suite size: `58` tests.
+Current verified suite size: `66` tests.
 
 ## Operational notes
 
@@ -115,6 +126,7 @@ Current verified suite size: `58` tests.
 - Vacation Tracker name matching depends on exact normalized names.
 - The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Random motivational GIF or quote messages are no longer part of the production behavior.
+- End-of-day escalation stays in the standup thread and does not write to `ALERT_CHANNEL_ID`.
 
 ## Known limitations
 

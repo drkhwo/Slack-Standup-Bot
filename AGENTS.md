@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working in this reposi
 
 ## What this is
 
-A Slack standup bot deployed on Railway. It posts a daily thread to a Slack channel, tracks who has replied, reminds missing reporters, and checks the Vacation Tracker API to exclude people who are out.
+A Slack standup bot deployed on Railway. It posts a daily thread to a Slack channel, tracks who has replied, reminds missing reporters, posts an end-of-day escalation for missing updates, and checks the Vacation Tracker API to exclude people who are out.
 
 The repository also contains a scaffolded Express/React/TypeScript web app in `server/` and `client/`, but that app is not part of the live bot flow.
 
@@ -52,15 +52,18 @@ Tests mock Slack, Supabase, APScheduler, and dotenv imports at module load time.
 2. `post_daily_thread()` posts the daily standup message to `CHANNEL_ID`, stores the returned Slack timestamp in the in-memory `daily_thread_ts` variable, and persists it into the `bot_state` table.
 3. `post_daily_thread()` immediately posts a vacation status reply in the same thread based on `get_vacation_users()`.
 4. `handle_message_events()` listens for replies in the active daily thread, ignores bot messages, writes or updates the user's report in `standup_reports`, and adds a `blue_heart` reaction after a successful database write.
-5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and posts a reminder for anyone still missing.
+5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and posts daytime reminders for anyone still missing.
+6. `post_end_of_day_escalation()` posts a final same-thread escalation at `21:00 Europe/Paris` if anyone is still missing, tagging only `@dk`.
 
 ### Scheduler configuration
 
 Current jobs are configured directly in `main.py`:
 
-- Daily standup thread: weekdays at `08:04`
-- First reminder: weekdays at `10:30`
-- Second reminder: weekdays at `16:00`
+- Timezone: `Europe/Paris`
+- Daily standup thread: weekdays at `09:04`
+- First reminder: weekdays at `11:30`
+- Second reminder: weekdays at `17:00`
+- End-of-day escalation: weekdays at `21:00`
 
 These values come from APScheduler cron jobs in code and should be treated as the source of truth.
 
@@ -108,6 +111,7 @@ Required record:
 - `send_alert()` mirrors operational notifications to `ALERT_CHANNEL_ID` when configured.
 - `send_deploy_notification()` only sends a deploy alert when `DEPLOY_NOTIFY=1` is present in the environment.
 - Random motivational boost messages are no longer part of the production flow.
+- End-of-day escalation posts in the main standup thread, not in `ALERT_CHANNEL_ID`.
 
 ## Deployment
 

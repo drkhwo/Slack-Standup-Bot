@@ -48,7 +48,7 @@ If the Railway service is connected to the GitHub repository:
 
 ```bash
 git add main.py phrases.py test_bot.py AGENTS.md MANIFEST.md DEPLOY.md
-git commit -m "Remove thread boosts and refresh bot docs"
+git commit -m "Add end-of-day missing report escalation"
 git push origin main
 ```
 
@@ -71,9 +71,11 @@ After deployment, verify the following:
 
 1. Service starts successfully and logs `Bot started!`
 2. The bot connects to Slack Socket Mode without authentication errors
-3. The next scheduled standup thread appears in the configured channel
-4. A reply in the thread is saved and receives a `blue_heart` reaction
-5. No extra random GIF or motivational thread messages are posted
+3. The scheduler runs in `Europe/Paris` local time
+4. The next scheduled standup thread appears in the configured channel at `09:04 Europe/Paris`
+5. A reply in the thread is saved and receives a `blue_heart` reaction
+6. The bot posts reminders at `11:30` and `17:00 Europe/Paris`
+7. If someone is still missing at `21:00 Europe/Paris`, the bot posts the final escalation in the same thread and tags `@dk`
 
 ## Troubleshooting
 
@@ -88,6 +90,7 @@ After deployment, verify the following:
 - Confirm `CHANNEL_ID` points to the correct Slack channel
 - Confirm the bot user is invited to that channel
 - Confirm the scheduler is running and the service stays up between cron times
+- Confirm the service clock is using the intended `Europe/Paris` scheduler timezone
 
 ### Reports are not saved
 
@@ -104,6 +107,12 @@ After deployment, verify the following:
 
 - Confirm `VACATION_TRACKER_API_KEY` is set
 - Check logs for Vacation Tracker API errors
+
+### End-of-day escalation did not fire
+
+- Confirm there were still missing reports at `21:00 Europe/Paris`
+- Confirm `daily_thread_ts` was restored or created correctly for that day
+- Check logs for `Error posting end-of-day escalation`
 
 ## Useful commands
 
