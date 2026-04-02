@@ -184,9 +184,20 @@ class TestCheckMissingReports(unittest.TestCase):
         bot_module.check_missing_reports()
         self.assertIsNone(bot_module.supabase)
 
+    @patch('main.get_vacation_users', return_value={"U222"})
+    def test_excludes_users_on_vacation(self, mock_vacation):
+        """TC-04-03: Vacation users are excluded from reminder targeting"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        bot_module.check_missing_reports()
+
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
     @patch('main.get_vacation_users', return_value=set())
     def test_pings_missing_users(self, mock_vacation):
-        """TC-04-03: check_missing_reports() pings users who haven't reported"""
+        """TC-04-04: check_missing_reports() pings users who haven't reported"""
         # Only U111 has reported
         mock_response = MagicMock()
         mock_response.data = [{"user_id": "U111"}]
@@ -203,7 +214,7 @@ class TestCheckMissingReports(unittest.TestCase):
 
     @patch('main.get_vacation_users', return_value=set())
     def test_no_ping_if_all_reported(self, mock_vacation):
-        """TC-04-04: check_missing_reports() does not ping if everyone reported"""
+        """TC-04-05: check_missing_reports() does not ping if everyone reported"""
         mock_response = MagicMock()
         mock_response.data = [{"user_id": "U111"}, {"user_id": "U222"}]
         self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
@@ -213,7 +224,7 @@ class TestCheckMissingReports(unittest.TestCase):
 
     @patch('main.get_vacation_users', return_value=set())
     def test_pings_all_if_none_reported(self, mock_vacation):
-        """TC-04-05: check_missing_reports() pings everyone if no one reported"""
+        """TC-04-06: check_missing_reports() pings everyone if no one reported"""
         mock_response = MagicMock()
         mock_response.data = []
         self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
@@ -223,6 +234,47 @@ class TestCheckMissingReports(unittest.TestCase):
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertIn("U111", call_kwargs['text'])
         self.assertIn("U222", call_kwargs['text'])
+
+
+class TestGetMissingUsersToday(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_supabase = MagicMock()
+        bot_module.supabase = self.mock_supabase
+        bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_excludes_reported_users(self, mock_vacation):
+        """TC-04H-01: Shared helper excludes already reported users"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        missing_users = bot_module.get_missing_users_today()
+
+        self.assertEqual(missing_users, ["U222", "U333"])
+
+    @patch('main.get_vacation_users', return_value={"U333"})
+    def test_excludes_vacation_users(self, mock_vacation):
+        """TC-04H-02: Shared helper excludes users on vacation"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        missing_users = bot_module.get_missing_users_today()
+
+        self.assertEqual(missing_users, ["U222"])
+
+    @patch('main.get_vacation_users', return_value="error")
+    def test_treats_vacation_api_error_as_no_vacations(self, mock_vacation):
+        """TC-04H-03: Shared helper treats vacation API errors as empty vacation set"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        missing_users = bot_module.get_missing_users_today()
+
+        self.assertEqual(missing_users, ["U222", "U333"])
 
 
 # ---------------------------------------------------------
@@ -482,6 +534,64 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         self.assertEqual(eq_call[0][1], date.today().isoformat())
 
 
+class TestEndOfDayEscalation(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        self.mock_supabase = MagicMock()
+        bot_module.app = self.mock_app
+        bot_module.supabase = self.mock_supabase
+        bot_module.daily_thread_ts = "1234567890.123456"
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+        bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
+
+    @patch('main.random.choice', return_value="https://media.giphy.com/media/l378giAZgxPw3eO52/giphy.gif")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_posts_when_users_are_missing(self, mock_vacation, mock_choice):
+        """TC-08E-01: End-of-day escalation posts when users are still missing"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        bot_module.post_end_of_day_escalation()
+
+        self.mock_app.client.chat_postMessage.assert_called_once()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertEqual(call_kwargs['channel'], 'C08UT7VP2TA')
+        self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
+        self.assertIn("End of day check: still no update from <@U222> <@U333>.", call_kwargs['text'])
+        self.assertIn("<@U068KKKNP9R>, this one needs attention.", call_kwargs['text'])
+        self.assertIn("https://media.giphy.com/media/l378giAZgxPw3eO52/giphy.gif", call_kwargs['text'])
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_does_nothing_when_no_one_is_missing(self, mock_vacation):
+        """TC-08E-02: End-of-day escalation stays silent when everyone reported"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}, {"user_id": "U222"}, {"user_id": "U333"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        bot_module.post_end_of_day_escalation()
+
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_does_nothing_without_daily_thread(self):
+        """TC-08E-03: End-of-day escalation skips without daily thread"""
+        bot_module.daily_thread_ts = None
+
+        bot_module.post_end_of_day_escalation()
+
+        self.mock_supabase.table.assert_not_called()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_does_nothing_without_supabase(self):
+        """TC-08E-04: End-of-day escalation skips without Supabase"""
+        bot_module.supabase = None
+
+        bot_module.post_end_of_day_escalation()
+
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+
 # ---------------------------------------------------------
 # TC-09: handle_message_events — edge cases
 # ---------------------------------------------------------
@@ -597,8 +707,18 @@ class TestMainFunction(unittest.TestCase):
         mock_supa.return_value = MagicMock()
         mock_app.client.chat_postMessage.return_value = {"ts": "123"}
         bot_module.main()
-        # Should have 3 jobs: post_daily_thread + 2x check_missing_reports
-        self.assertEqual(mock_sched.add_job.call_count, 3)
+        mock_sched_cls.assert_called_once_with(timezone=bot_module.LOCAL_TIMEZONE)
+        self.assertEqual(mock_sched.add_job.call_count, 4)
+        add_job_calls = mock_sched.add_job.call_args_list
+        self.assertEqual(add_job_calls[0][0][0], bot_module.post_daily_thread)
+        self.assertEqual(add_job_calls[0][1]['hour'], 9)
+        self.assertEqual(add_job_calls[1][0][0], bot_module.check_missing_reports)
+        self.assertEqual(add_job_calls[1][1]['hour'], 11)
+        self.assertEqual(add_job_calls[1][1]['minute'], 30)
+        self.assertEqual(add_job_calls[2][0][0], bot_module.check_missing_reports)
+        self.assertEqual(add_job_calls[2][1]['hour'], 17)
+        self.assertEqual(add_job_calls[3][0][0], bot_module.post_end_of_day_escalation)
+        self.assertEqual(add_job_calls[3][1]['hour'], 21)
         mock_sched.start.assert_called_once()
 
 
@@ -891,10 +1011,12 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestSupabaseClient))
     suite.addTests(loader.loadTestsFromTestCase(TestPostDailyThread))
     suite.addTests(loader.loadTestsFromTestCase(TestCheckMissingReports))
+    suite.addTests(loader.loadTestsFromTestCase(TestGetMissingUsersToday))
     suite.addTests(loader.loadTestsFromTestCase(TestHandleMessageEvents))
     suite.addTests(loader.loadTestsFromTestCase(TestPhrases))
     suite.addTests(loader.loadTestsFromTestCase(TestPostDailyThreadExtended))
     suite.addTests(loader.loadTestsFromTestCase(TestCheckMissingReportsExtended))
+    suite.addTests(loader.loadTestsFromTestCase(TestEndOfDayEscalation))
     suite.addTests(loader.loadTestsFromTestCase(TestHandleMessageEdgeCases))
     suite.addTests(loader.loadTestsFromTestCase(TestMainFunction))
     suite.addTests(loader.loadTestsFromTestCase(TestGetVacationUsers))

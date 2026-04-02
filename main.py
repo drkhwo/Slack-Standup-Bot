@@ -2,6 +2,7 @@ import os
 import logging
 from datetime import date, datetime
 import random
+from zoneinfo import ZoneInfo
 
 # Third-party imports
 import requests
@@ -25,6 +26,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 ALERT_CHANNEL_ID = os.environ.get("ALERT_CHANNEL_ID")  # Optional: mirror alerts to a test/monitoring channel
 VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
+LOCAL_TIMEZONE = ZoneInfo("Europe/Paris")
 
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
@@ -67,6 +69,21 @@ TEAM_USER_IDS = [uid for uid in TEAM_MAPPING.keys() if uid != "U068KKKNP9R"]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+REMINDER_MEMES = [
+    "I DECLARE... STANDUP! 📢\nhttps://media.giphy.com/media/8nM6YNtvjuezzD7DNh/giphy.gif",
+    "NO GOD! PLEASE NO! Forgot to write your status? 😱\nhttps://media.giphy.com/media/vyTnNTrs3wqQ0UIvwE/giphy.gif",
+    "Would I rather be feared or loved? Easy. Both. I want people to be afraid of how much they love my standup reminders. ☕\nhttps://media.giphy.com/media/hTfhyOtBcBWLeGnMpp/giphy.gif",
+    "Prison Mike says: in prison you are somebody's b*tch. Here, you just need to write your status! 🧣\nhttps://media.giphy.com/media/aZeFIjI9hNcJ2/giphy.gif",
+    "Me waiting for your updates past 12:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
+    "If I don't have some updates soon, I might die. 🍰\nhttps://media.giphy.com/media/5wWf7H89PisM6An8UAU/giphy.gif",
+]
+
+END_OF_DAY_GIFS = [
+    "https://media.giphy.com/media/l378giAZgxPw3eO52/giphy.gif",
+    "https://media.giphy.com/media/BEob5qwFkSJ7G/giphy.gif",
+    "https://media.giphy.com/media/ISOckXUybVfQ4/giphy.gif",
+]
 
 def get_supabase_client():
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -164,6 +181,27 @@ def get_vacation_users():
         logger.error(f"Error fetching vacations from API: {e}")
         return "error"
 
+
+def get_missing_users_today():
+    """Return users who still have not posted an update today."""
+    if not supabase:
+        logger.error("Supabase client not initialized")
+        return None
+
+    today = date.today().isoformat()
+
+    response = supabase.table("standup_reports").select("user_id").eq("date", today).execute()
+    reported_users = {row["user_id"] for row in response.data}
+
+    vacation_users = get_vacation_users()
+    if vacation_users == "error":
+        vacation_users = set()
+
+    return [
+        uid for uid in TEAM_USER_IDS
+        if uid not in reported_users and uid not in vacation_users
+    ]
+
 def post_daily_thread():
     global daily_thread_ts
 
@@ -236,45 +274,17 @@ def check_missing_reports():
     if not daily_thread_ts:
         logger.warning("No daily thread found for today. Skipping check.")
         return
-    
-    if not supabase:
-        logger.error("Supabase client not initialized")
-        return
 
     today = date.today().isoformat()
     
     try:
-        # 1. Get users who already reported
-        response = supabase.table("standup_reports").select("user_id").eq("date", today).execute()
-        reported_users = {row["user_id"] for row in response.data}
-        
-        # 2. Get users on vacation
-        vacation_users = get_vacation_users()
-        if vacation_users == "error":
-            vacation_users = set()  # On error, assume no vacations to avoid breaking the flow
-
-        # 3. Find users who haven't reported (TEAM_USER_IDS already excludes CEO)
-        missing_users = [
-            uid for uid in TEAM_USER_IDS 
-            if uid not in reported_users and uid not in vacation_users
-        ]
+        missing_users = get_missing_users_today()
+        if missing_users is None:
+            return
         
         # 4. Send reminder with a meme
         if missing_users:
-            MEMES = [
-                "I DECLARE... STANDUP! 📢\nhttps://media.giphy.com/media/8nM6YNtvjuezzD7DNh/giphy.gif",
-
-                "NO GOD! PLEASE NO! Forgot to write your status? 😱\nhttps://media.giphy.com/media/vyTnNTrs3wqQ0UIvwE/giphy.gif",
-
-                "Would I rather be feared or loved? Easy. Both. I want people to be afraid of how much they love my standup reminders. ☕\nhttps://media.giphy.com/media/hTfhyOtBcBWLeGnMpp/giphy.gif",
-
-                "Prison Mike says: in prison you are somebody's b*tch. Here, you just need to write your status! 🧣\nhttps://media.giphy.com/media/aZeFIjI9hNcJ2/giphy.gif",
-
-                "Me waiting for your updates past 12:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
-
-                "If I don't have some updates soon, I might die. 🍰\nhttps://media.giphy.com/media/5wWf7H89PisM6An8UAU/giphy.gif"
-            ]
-            meme = random.choice(MEMES)
+            meme = random.choice(REMINDER_MEMES)
             mentions = " ".join([f"<@{uid}>" for uid in missing_users])
             
             app.client.chat_postMessage(
@@ -290,6 +300,34 @@ def check_missing_reports():
             
     except Exception as e:
         logger.error(f"Error checking missing reports: {e}")
+
+
+def post_end_of_day_escalation():
+    global daily_thread_ts
+    if not daily_thread_ts:
+        logger.warning("No daily thread found for today. Skipping end-of-day escalation.")
+        return
+
+    try:
+        missing_users = get_missing_users_today()
+        if missing_users is None or not missing_users:
+            return
+
+        mentions = " ".join([f"<@{uid}>" for uid in missing_users])
+        sad_gif = random.choice(END_OF_DAY_GIFS)
+        text = (
+            f"End of day check: still no update from {mentions}. "
+            f"<@U068KKKNP9R>, this one needs attention.\n{sad_gif}"
+        )
+
+        app.client.chat_postMessage(
+            channel=CHANNEL_ID,
+            thread_ts=daily_thread_ts,
+            text=text
+        )
+        logger.info(f"End-of-day escalation sent for missing users: {missing_users}")
+    except Exception as e:
+        logger.error(f"Error posting end-of-day escalation: {e}")
 
 def register_events(app_instance):
     @app_instance.event("message")
@@ -374,16 +412,12 @@ def main():
     register_events(app)
 
     # Schedule jobs
-    scheduler = BackgroundScheduler()
-    # Using 'cron' triggers
-    # 1. Daily standup thread at 09:04 CET (08:04 UTC), weekdays only
-    scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=8, minute=4)
-
-    # 2. First reminder at 11:30 CET (10:30 UTC), weekdays only
-    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=10, minute=30)
-
-    # 3. Second reminder at 17:00 CET (16:00 UTC), weekdays only
-    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=16, minute=0)
+    scheduler = BackgroundScheduler(timezone=LOCAL_TIMEZONE)
+    # Weekday schedule in Europe/Paris local time.
+    scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=9, minute=4)
+    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=11, minute=30)
+    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=17, minute=0)
+    scheduler.add_job(post_end_of_day_escalation, 'cron', day_of_week='mon-fri', hour=21, minute=0)
     
     scheduler.start()
     
