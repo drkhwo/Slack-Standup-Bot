@@ -1,151 +1,134 @@
-# Slack Standup Bot — Genesis Manifest
+# Slack Standup Bot — Project Manifest
 
-**Version:** 0.1.0 (Genesis)
-**Date:** 2025-02-25
-**Author:** stas@replika.ai
+**Version:** 0.2.0
+**Updated:** 2026-03-25
 
----
+## Overview
 
-## What is this?
-
-Slack Standup Bot — бот для автоматизации ежедневных стендапов в Slack. Создаёт тред каждое утро, собирает отчёты команды, сохраняет их в базу и напоминает тем, кто забыл отписаться.
-
----
+Slack Standup Bot automates a daily Slack status thread for a fixed team roster. It posts the thread, collects replies, persists reports in Supabase, marks confirmed messages with a reaction, checks Vacation Tracker to avoid false reminders, and pings only the people who are still missing.
 
 ## Architecture
 
+```text
+Slack Socket Mode events
+        |
+        v
+   Python bot (`main.py`)
+    |       |        |
+    |       |        +--> Vacation Tracker API
+    |       |
+    |       +------------> APScheduler cron jobs
+    |
+    +--------------------> Supabase
 ```
-┌──────────────┐     Socket Mode      ┌──────────────┐
-│  Slack API   │◄────────────────────►│  Python Bot  │
-│  (Channels)  │                      │  (main.py)   │
-└──────────────┘                      └──────┬───────┘
-                                             │
-                                      ┌──────▼───────┐
-                                      │   Supabase   │
-                                      │  (Postgres)  │
-                                      └──────────────┘
-```
 
-**Tech stack:** Python 3.10+ · Slack Bolt · Supabase · APScheduler · Socket Mode
+**Tech stack:** Python, Slack Bolt, Supabase, APScheduler, requests, Railway
 
----
+## Runtime behavior
 
-## Features (v0.1.0)
+### Daily thread posting
 
-### Daily Thread Posting
-- Автоматический пост в канал каждый день в 09:00
-- Рандомная открывающая фраза из пула (phrases.py)
-- Структурированный шаблон: Yesterday / Today / Blockers
-- Сохранение `thread_ts` в Supabase для выживания после рестартов
+- Posts one standup prompt to `CHANNEL_ID`
+- Uses a random opening phrase from `phrases.py`
+- Persists the returned Slack thread timestamp in memory and in Supabase
+- Posts a same-thread vacation status message immediately after the main prompt
 
-### Report Collection
-- Слушает сообщения в standup-треде через Socket Mode
-- Фильтрует сообщения ботов (bot_id)
-- Фильтрует сообщения из других тредов
-- Сохраняет отчёт в `standup_reports`: user_id, date, raw_text, thread_ts
-- Ставит ✅ реакцию на подтверждённые сообщения
+### Report collection
 
-### Missing Report Reminders
-- Проверка в 11:30 — кто ещё не отписался
-- Пинг пользователей из `TEAM_USER_IDS` в том же треде
-- Формат: `Hey @user1 @user2, waiting for your update! ⏳`
+- Listens for Slack `message` events
+- Accepts only replies that belong to the active `daily_thread_ts`
+- Ignores bot-authored messages
+- Inserts a new `standup_reports` row for the first reply of the day
+- Appends later replies from the same user to the existing `raw_text`
+- Adds a `blue_heart` reaction only after the database write succeeds
 
-### Error Handling
-- Все внешние вызовы (Slack API, Supabase) обёрнуты в try/except
-- Бот продолжает работать при ошибках отдельных операций
-- Логирование через Python logging
+### Missing report reminders
 
----
+- Loads today's reports from Supabase
+- Loads approved absences from Vacation Tracker
+- Excludes users on leave from reminder targeting
+- Posts a reminder in the existing standup thread for anyone still missing
 
-## Database Schema
+### Scheduling
 
-**Table: `standup_reports`**
+Configured in `main.py`:
+
+- Weekdays at `08:04` — post daily thread
+- Weekdays at `10:30` — first reminder
+- Weekdays at `16:00` — second reminder
+
+## Database
+
+### `standup_reports`
+
+Current schema in `setup.sql`:
 
 | Column | Type | Description |
-|--------|------|-------------|
-| id | UUID (PK) | Auto-generated |
-| user_id | text | Slack user ID |
-| date | date | Report date (default: today) |
-| raw_text | text | Full message text |
-| thread_ts | text | Message timestamp |
-| created_at | timestamptz | UTC creation time |
+|---|---|---|
+| `id` | `uuid` | Primary key |
+| `user_id` | `text` | Slack user ID |
+| `date` | `date` | Report date |
+| `raw_text` | `text` | Full stored report body |
+| `thread_ts` | `text` | Slack message timestamp |
+| `created_at` | `timestamptz` | Record creation time |
 
-**Table: `bot_state`** (runtime)
+### `bot_state`
+
+The bot also expects a `bot_state` key/value table for restart recovery of `daily_thread_ts`.
+
+Suggested structure:
 
 | Column | Type | Description |
-|--------|------|-------------|
-| key | text | State key (e.g. `daily_thread_ts`) |
-| value | text | State value |
+|---|---|---|
+| `key` | `text` | State key |
+| `value` | `text` | Stored value |
 
----
-
-## Environment Variables
+## Environment variables
 
 | Variable | Required | Description |
-|----------|----------|-------------|
-| `SLACK_BOT_TOKEN` | ✅ | Bot User OAuth Token (xoxb-...) |
-| `SLACK_APP_TOKEN` | ✅ | App-Level Token for Socket Mode (xapp-...) |
-| `SUPABASE_URL` | ✅ | Supabase project URL |
-| `SUPABASE_KEY` | ✅ | Supabase anon/service key |
-| `CHANNEL_ID` | ✅ | Target Slack channel ID (production standup channel) |
-| `ALERT_CHANNEL_ID` | ❌ | Optional monitoring channel for bot status alerts |
+|---|---|---|
+| `SLACK_BOT_TOKEN` | Yes | Bot token |
+| `SLACK_APP_TOKEN` | Yes | Socket Mode app token |
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_KEY` | Yes | Supabase API key |
+| `CHANNEL_ID` | Yes | Slack channel for standups |
+| `VACATION_TRACKER_API_KEY` | No | Enables leave checks |
+| `ALERT_CHANNEL_ID` | No | Sends monitoring alerts |
+| `DEPLOY_NOTIFY` | No | Sends one deploy alert when set to `1` |
 
----
+## Testing
 
-## Test Coverage
+Regression tests live in `test_bot.py`.
 
-**43 tests across 10 test suites:**
+Run:
 
-| Suite | Tests | Coverage |
-|-------|-------|----------|
-| TC-01: Configuration | 5 | Env vars, initial state |
-| TC-02: Supabase Client | 2 | Init with/without creds |
-| TC-03: post_daily_thread | 7 | Posting, channel, ts, phrases, errors |
-| TC-04: check_missing_reports | 5 | Missing users, pings, edge cases |
-| TC-05: handle_message_events | 7 | Save, react, filter, errors |
-| TC-06: phrases.py | 3 | Format, content validation |
-| TC-07: post_daily_thread ext. | 4 | Instructions, state persistence |
-| TC-08: check_missing_reports ext. | 4 | Emoji, thread, date queries |
-| TC-09: handle_message edge cases | 3 | No thread_ts, no supabase, error rollback |
-| TC-10: main() init | 3 | Token check, app init, scheduler |
+```bash
+python -m pytest test_bot.py -v
+```
 
-Run: `python -m pytest test_bot.py -v`
+Current verified suite size: `58` tests.
 
----
+## Operational notes
 
-## Maintenance Notes
+- Only one bot instance should run at a time.
+- `TEAM_MAPPING` is hardcoded and must be kept current when the roster changes.
+- Vacation Tracker name matching depends on exact normalized names.
+- The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
+- Random motivational GIF or quote messages are no longer part of the production behavior.
 
-### Phrases & Memes
-- **MEMES** (reminder GIFs/phrases) and **MICHAEL_SCOTT_GREETINGS** in `main.py` should be reviewed and updated periodically — Giphy links can expire or become unavailable over time.
-- All user-facing text must be in **English only**.
-- **Next iteration:** phrase and meme generation will be handled via AI to keep content fresh automatically.
+## Known limitations
 
----
-
-## Known Limitations (MVP)
-
-- `TEAM_USER_IDS` is hardcoded — needs dynamic loading from Slack/Supabase
-- No web dashboard (frontend in scaffolding)
-- No bot slash commands (/standup, /skip, /summary)
-- No analytics or report trends
-- Single-channel only
-
----
+- Team membership is static in code.
+- The bot supports one primary standup channel.
+- There are no slash commands or admin controls.
+- There is no dashboard for browsing historical reports.
 
 ## Deployment
 
-**Current:** Railway.app (production)
-**Important:** Only ONE instance should be running at a time to avoid duplicate posts.
+Railway uses the `Dockerfile` build and starts the service with:
 
-See `DEPLOY.md` for step-by-step instructions.
+```bash
+python main.py
+```
 
----
-
-## Roadmap (v0.2.0+)
-
-- [ ] Dynamic team roster from Slack channel members
-- [ ] Slash commands (/standup, /skip, /summary)
-- [ ] Weekly digest with analytics
-- [ ] Web dashboard for report history
-- [ ] Multi-channel support
-- [ ] Timezone-aware scheduling
+See `DEPLOY.md` for the current deployment procedure.

@@ -1,11 +1,7 @@
 import os
 import logging
-import re
-import json
-import threading
 from datetime import date, datetime
 import random
-import time
 
 # Third-party imports
 import requests
@@ -16,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
 # Local imports
-from phrases import get_opening_phrase, get_michael_quote, should_send_boost
+from phrases import get_opening_phrase
 
 # Load environment variables
 load_dotenv()
@@ -32,10 +28,6 @@ VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
 
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
-# Counter for Michael Scott motivational quotes sent today (resets each new thread)
-boost_count_today: int = 0
-# Lock protecting boost_count_today against concurrent Slack Bolt thread-pool access
-boost_lock = threading.Lock()
 
 # Mapping: Slack User ID -> Name as it appears in Vacation Tracker
 TEAM_MAPPING = {
@@ -173,14 +165,12 @@ def get_vacation_users():
         return "error"
 
 def post_daily_thread():
-    global daily_thread_ts, boost_count_today
+    global daily_thread_ts
 
     if not app or not CHANNEL_ID:
         logger.error("App or CHANNEL_ID not initialized")
         return
 
-    # Reset daily boost counter for the new thread
-    boost_count_today = 0
     phrase = get_opening_phrase()
     
     try:
@@ -304,7 +294,7 @@ def check_missing_reports():
 def register_events(app_instance):
     @app_instance.event("message")
     def handle_message_events(body, logger):
-        global daily_thread_ts, boost_count_today
+        global daily_thread_ts
         event = body["event"]
         
         # Check if it's a reply in the daily thread
@@ -354,24 +344,6 @@ def register_events(app_instance):
                     timestamp=ts
                 )
 
-                # Randomly post a Michael Scott motivational quote (max 3/day).
-                # Read-modify-write is guarded by boost_lock to prevent races
-                # under Slack Bolt's internal thread pool.
-                with boost_lock:
-                    send_boost = should_send_boost(boost_count_today)
-                    if send_boost:
-                        boost_count_today += 1
-                        boost_number = boost_count_today
-
-                if send_boost:
-                    quote = get_michael_quote(include_gif=True)
-                    app_instance.client.chat_postMessage(
-                        channel=CHANNEL_ID,
-                        thread_ts=daily_thread_ts,
-                        text=quote
-                    )
-                    logger.info(f"Sent Michael Scott boost #{boost_number}")
-
             except Exception as e:
                 logger.error(f"Error saving report: {e}")
 
@@ -384,7 +356,7 @@ def send_deploy_notification():
         return
     send_alert(
         "🚀 Bot deployed successfully!\n"
-        "Current logic version: *Michael Scott Mode* (max 3 quotes/day)."
+        "Current logic version: *Standup collection mode*."
     )
     logger.info("Deploy notification sent.")
 

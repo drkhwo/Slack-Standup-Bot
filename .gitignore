@@ -9,3 +9,7 @@ vite.config.ts.*
 *.env
 store.env
 env.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+files/
