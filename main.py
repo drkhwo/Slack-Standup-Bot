@@ -26,6 +26,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 ALERT_CHANNEL_ID = os.environ.get("ALERT_CHANNEL_ID")  # Optional: mirror alerts to a test/monitoring channel
 VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
+SKIP_TODAY = os.environ.get("SKIP_TODAY", "")
 LOCAL_TIMEZONE = ZoneInfo("Europe/Paris")
 
 # Global state to track the daily thread timestamp
@@ -271,6 +272,9 @@ def post_daily_thread():
 
 def check_missing_reports():
     global daily_thread_ts
+    if SKIP_TODAY:
+        logger.info("SKIP_TODAY is set — skipping reminder.")
+        return
     if not daily_thread_ts:
         logger.warning("No daily thread found for today. Skipping check.")
         return
@@ -304,6 +308,9 @@ def check_missing_reports():
 
 def post_end_of_day_escalation():
     global daily_thread_ts
+    if SKIP_TODAY:
+        logger.info("SKIP_TODAY is set — skipping end-of-day escalation.")
+        return
     if not daily_thread_ts:
         logger.warning("No daily thread found for today. Skipping end-of-day escalation.")
         return
