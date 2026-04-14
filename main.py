@@ -272,7 +272,7 @@ def post_daily_thread():
 
 def check_missing_reports():
     global daily_thread_ts
-    if SKIP_TODAY:
+    if SKIP_TODAY == "1":
         logger.info("SKIP_TODAY is set — skipping reminder.")
         return
     if not daily_thread_ts:
@@ -280,7 +280,7 @@ def check_missing_reports():
         return
 
     today = date.today().isoformat()
-    
+
     try:
         missing_users = get_missing_users_today()
         if missing_users is None:
@@ -308,7 +308,7 @@ def check_missing_reports():
 
 def post_end_of_day_escalation():
     global daily_thread_ts
-    if SKIP_TODAY:
+    if SKIP_TODAY == "1":
         logger.info("SKIP_TODAY is set — skipping end-of-day escalation.")
         return
     if not daily_thread_ts:
