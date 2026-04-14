@@ -40,7 +40,6 @@ TEAM_MAPPING = {
     "U06A6MV64R2": "andrei",
     "U035U3KTFL5": "Anton Tyutin",
     "U08MW9K5K0U": "Ban Markovic",
-    "UEXNGPDTR": "Boris Romanov",
     "U0AD8TDM4DQ": "Constantin Chopin",
     "U097GKF641M": "Cristian Matzov",
     "U085J8B5TJ6": "Ed",
