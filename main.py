@@ -420,7 +420,6 @@ def main():
     # Weekday schedule in Europe/Paris local time.
     scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=9, minute=4)
     scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=12, minute=30)
-    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=17, minute=0)
     scheduler.add_job(post_end_of_day_escalation, 'cron', day_of_week='mon-fri', hour=21, minute=0)
     
     scheduler.start()

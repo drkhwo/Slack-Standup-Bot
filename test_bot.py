@@ -708,17 +708,15 @@ class TestMainFunction(unittest.TestCase):
         mock_app.client.chat_postMessage.return_value = {"ts": "123"}
         bot_module.main()
         mock_sched_cls.assert_called_once_with(timezone=bot_module.LOCAL_TIMEZONE)
-        self.assertEqual(mock_sched.add_job.call_count, 4)
+        self.assertEqual(mock_sched.add_job.call_count, 3)
         add_job_calls = mock_sched.add_job.call_args_list
         self.assertEqual(add_job_calls[0][0][0], bot_module.post_daily_thread)
         self.assertEqual(add_job_calls[0][1]['hour'], 9)
         self.assertEqual(add_job_calls[1][0][0], bot_module.check_missing_reports)
         self.assertEqual(add_job_calls[1][1]['hour'], 12)
         self.assertEqual(add_job_calls[1][1]['minute'], 30)
-        self.assertEqual(add_job_calls[2][0][0], bot_module.check_missing_reports)
-        self.assertEqual(add_job_calls[2][1]['hour'], 17)
-        self.assertEqual(add_job_calls[3][0][0], bot_module.post_end_of_day_escalation)
-        self.assertEqual(add_job_calls[3][1]['hour'], 21)
+        self.assertEqual(add_job_calls[2][0][0], bot_module.post_end_of_day_escalation)
+        self.assertEqual(add_job_calls[2][1]['hour'], 21)
         mock_sched.start.assert_called_once()
 
 
