@@ -708,15 +708,18 @@ class TestMainFunction(unittest.TestCase):
         mock_app.client.chat_postMessage.return_value = {"ts": "123"}
         bot_module.main()
         mock_sched_cls.assert_called_once_with(timezone=bot_module.LOCAL_TIMEZONE)
-        self.assertEqual(mock_sched.add_job.call_count, 3)
+        self.assertEqual(mock_sched.add_job.call_count, 4)
         add_job_calls = mock_sched.add_job.call_args_list
         self.assertEqual(add_job_calls[0][0][0], bot_module.post_daily_thread)
         self.assertEqual(add_job_calls[0][1]['hour'], 9)
-        self.assertEqual(add_job_calls[1][0][0], bot_module.check_missing_reports)
-        self.assertEqual(add_job_calls[1][1]['hour'], 12)
-        self.assertEqual(add_job_calls[1][1]['minute'], 30)
-        self.assertEqual(add_job_calls[2][0][0], bot_module.post_end_of_day_escalation)
-        self.assertEqual(add_job_calls[2][1]['hour'], 21)
+        self.assertEqual(add_job_calls[1][0][0], bot_module.send_personal_standup_reminder)
+        self.assertEqual(add_job_calls[1][1]['hour'], 9)
+        self.assertEqual(add_job_calls[1][1]['minute'], 15)
+        self.assertEqual(add_job_calls[2][0][0], bot_module.check_missing_reports)
+        self.assertEqual(add_job_calls[2][1]['hour'], 12)
+        self.assertEqual(add_job_calls[2][1]['minute'], 30)
+        self.assertEqual(add_job_calls[3][0][0], bot_module.post_end_of_day_escalation)
+        self.assertEqual(add_job_calls[3][1]['hour'], 21)
         mock_sched.start.assert_called_once()
 
 
@@ -999,6 +1002,107 @@ class TestThreadBoostsRemoved(unittest.TestCase):
 
 
 # ---------------------------------------------------------
+# TC-14: send_personal_standup_reminder()
+# ---------------------------------------------------------
+class TestPersonalStandupReminder(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        self.mock_supabase = MagicMock()
+        bot_module.app = self.mock_app
+        bot_module.supabase = self.mock_supabase
+        bot_module.daily_thread_ts = "1234567890.123456"
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+        bot_module.PERSONAL_REMINDER_USER_ID = 'U0821BRMJ4R'
+
+        # Default: not posted today
+        self.mock_supabase.table.return_value.select.return_value \
+            .eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+    def tearDown(self):
+        bot_module.PERSONAL_REMINDER_USER_ID = ''
+
+    def _set_today_report(self, exists: bool):
+        self.mock_supabase.table.return_value.select.return_value \
+            .eq.return_value.eq.return_value.execute.return_value = MagicMock(
+                data=[{"user_id": "U0821BRMJ4R"}] if exists else []
+            )
+
+    def _set_prev_report(self, raw_text: str | None):
+        """Patch supabase so the second call (prev workday lookup) returns raw_text."""
+        today_response = MagicMock(data=[])
+        prev_response = MagicMock(data=[{"raw_text": raw_text}] if raw_text is not None else [])
+
+        self.mock_supabase.table.return_value.select.return_value \
+            .eq.return_value.eq.return_value.execute.side_effect = [today_response, prev_response]
+
+    def test_skips_when_no_user_id_configured(self):
+        """TC-14-01: Does nothing when PERSONAL_REMINDER_USER_ID is empty."""
+        bot_module.PERSONAL_REMINDER_USER_ID = ''
+        bot_module.send_personal_standup_reminder()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_skips_when_already_posted_today(self):
+        """TC-14-02: No DM if user already posted today."""
+        self.mock_supabase.table.return_value.select.return_value \
+            .eq.return_value.eq.return_value.execute.return_value = MagicMock(
+                data=[{"user_id": "U0821BRMJ4R"}]
+            )
+        bot_module.send_personal_standup_reminder()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_skips_when_no_previous_report(self):
+        """TC-14-03: No DM if no previous workday report found."""
+        today_response = MagicMock(data=[])
+        prev_response = MagicMock(data=[])
+        self.mock_supabase.table.return_value.select.return_value \
+            .eq.return_value.eq.return_value.execute.side_effect = [today_response, prev_response]
+        bot_module.send_personal_standup_reminder()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_sends_dm_with_today_section(self):
+        """TC-14-04: Sends DM with extracted Today section when available."""
+        self._set_prev_report("Yesterday: fixed bug X\nToday: ship feature Y, 1 day left\nBlockers: none")
+        bot_module.send_personal_standup_reminder()
+        self.mock_app.client.chat_postMessage.assert_called_once()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertEqual(call_kwargs['channel'], 'U0821BRMJ4R')
+        self.assertIn('ship feature Y', call_kwargs['text'])
+
+    def test_sends_dm_with_full_post_when_no_today_section(self):
+        """TC-14-05: Falls back to full post when Today section can't be parsed."""
+        self._set_prev_report("Some unstructured update without today section")
+        bot_module.send_personal_standup_reminder()
+        self.mock_app.client.chat_postMessage.assert_called_once()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertIn('unstructured update', call_kwargs['text'])
+
+    def test_dm_includes_thread_link_when_available(self):
+        """TC-14-06: DM includes link to today's standup thread."""
+        self._set_prev_report("Yesterday: X\nToday: Y\nBlockers: none")
+        bot_module.send_personal_standup_reminder()
+        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertIn('slack.com/archives', call_kwargs['text'])
+
+
+class TestExtractTodaySection(unittest.TestCase):
+
+    def test_extracts_today_section(self):
+        text = "Yesterday: fixed X\nToday: deploy feature Y\nBlockers: none"
+        result = bot_module._extract_today_section(text)
+        self.assertEqual(result, "deploy feature Y")
+
+    def test_extracts_bold_format(self):
+        text = "*Yesterday:* fixed X\n*Today (by EOD):* ship Z, 1 day\n*Blockers:* none"
+        result = bot_module._extract_today_section(text)
+        self.assertIn("ship Z", result)
+
+    def test_returns_empty_when_no_today(self):
+        result = bot_module._extract_today_section("Random text with no sections")
+        self.assertEqual(result, "")
+
+
+# ---------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------
 if __name__ == '__main__':
@@ -1020,6 +1124,8 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestGetVacationUsers))
     suite.addTests(loader.loadTestsFromTestCase(TestSendDeployNotification))
     suite.addTests(loader.loadTestsFromTestCase(TestThreadBoostsRemoved))
+    suite.addTests(loader.loadTestsFromTestCase(TestPersonalStandupReminder))
+    suite.addTests(loader.loadTestsFromTestCase(TestExtractTodaySection))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

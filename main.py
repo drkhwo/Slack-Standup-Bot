@@ -1,6 +1,7 @@
 import os
 import logging
-from datetime import date
+import re
+from datetime import date, timedelta
 import random
 from zoneinfo import ZoneInfo
 
@@ -27,6 +28,7 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 ALERT_CHANNEL_ID = os.environ.get("ALERT_CHANNEL_ID")  # Optional: mirror alerts to a test/monitoring channel
 VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
 SKIP_TODAY = os.environ.get("SKIP_TODAY", "")
+PERSONAL_REMINDER_USER_ID = os.environ.get("PERSONAL_REMINDER_USER_ID", "")
 LOCAL_TIMEZONE = ZoneInfo("Europe/Paris")
 
 # Global state to track the daily thread timestamp
@@ -333,6 +335,71 @@ def post_end_of_day_escalation():
     except Exception as e:
         logger.error(f"Error posting end-of-day escalation: {e}")
 
+def _prev_workday(today: date) -> date:
+    """Return the previous workday (skips weekends)."""
+    delta = 3 if today.weekday() == 0 else 1  # Monday → Friday
+    return today - timedelta(days=delta)
+
+
+def _extract_today_section(raw_text: str) -> str:
+    """Extract the 'Today' section from a standup post."""
+    match = re.search(
+        r'\*?Today[^:]*:\*?\s*(.+?)(?=\n\s*\*?(?:Yesterday|Blockers?|Risks?|Status)[^:]*:|$)',
+        raw_text,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
+def send_personal_standup_reminder():
+    """DM the configured user with their 'Today' plan from yesterday's standup."""
+    if not PERSONAL_REMINDER_USER_ID:
+        return
+
+    if not app or not supabase:
+        logger.warning("send_personal_standup_reminder: app or supabase not ready")
+        return
+
+    today = date.today().isoformat()
+    prev = _prev_workday(date.today()).isoformat()
+
+    try:
+        # Skip if user already posted today
+        already = supabase.table("standup_reports").select("user_id").eq("user_id", PERSONAL_REMINDER_USER_ID).eq("date", today).execute()
+        if already.data:
+            logger.info("Personal reminder: user already posted today, skipping")
+            return
+
+        # Fetch previous workday's report
+        result = supabase.table("standup_reports").select("raw_text").eq("user_id", PERSONAL_REMINDER_USER_ID).eq("date", prev).execute()
+        if not result.data:
+            logger.info(f"Personal reminder: no previous report found for {prev}")
+            return
+
+        raw_text = result.data[0]["raw_text"]
+        today_section = _extract_today_section(raw_text)
+
+        if today_section:
+            body = f"*Yesterday you planned for today:*\n>{today_section}"
+        else:
+            body = f"_Could not parse your yesterday's plan — here's the full post:_\n>{raw_text[:300]}"
+
+        thread_link = ""
+        if daily_thread_ts:
+            thread_link = f"\n\n<https://slack.com/archives/{CHANNEL_ID}/p{daily_thread_ts.replace('.', '')}|Open today's standup thread> — deadline is *13:00* 🕐"
+
+        app.client.chat_postMessage(
+            channel=PERSONAL_REMINDER_USER_ID,
+            text=f"👋 Hey! Don't forget to post your standup before 13:00.\n\n{body}{thread_link}"
+        )
+        logger.info(f"Personal standup reminder sent to {PERSONAL_REMINDER_USER_ID}")
+
+    except Exception as e:
+        logger.error(f"Error sending personal standup reminder: {e}")
+
+
 def register_events(app_instance):
     @app_instance.event("message")
     def handle_message_events(body, logger):
@@ -419,6 +486,7 @@ def main():
     scheduler = BackgroundScheduler(timezone=LOCAL_TIMEZONE)
     # Weekday schedule in Europe/Paris local time.
     scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=9, minute=4)
+    scheduler.add_job(send_personal_standup_reminder, 'cron', day_of_week='mon-fri', hour=9, minute=15)
     scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=12, minute=30)
     scheduler.add_job(post_end_of_day_escalation, 'cron', day_of_week='mon-fri', hour=21, minute=0)
     
