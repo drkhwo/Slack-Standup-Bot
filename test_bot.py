@@ -713,7 +713,7 @@ class TestMainFunction(unittest.TestCase):
         self.assertEqual(add_job_calls[0][0][0], bot_module.post_daily_thread)
         self.assertEqual(add_job_calls[0][1]['hour'], 9)
         self.assertEqual(add_job_calls[1][0][0], bot_module.check_missing_reports)
-        self.assertEqual(add_job_calls[1][1]['hour'], 11)
+        self.assertEqual(add_job_calls[1][1]['hour'], 12)
         self.assertEqual(add_job_calls[1][1]['minute'], 30)
         self.assertEqual(add_job_calls[2][0][0], bot_module.check_missing_reports)
         self.assertEqual(add_job_calls[2][1]['hour'], 17)

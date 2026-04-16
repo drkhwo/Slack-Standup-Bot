@@ -75,7 +75,7 @@ REMINDER_MEMES = [
     "NO GOD! PLEASE NO! Forgot to write your status? 😱\nhttps://media.giphy.com/media/vyTnNTrs3wqQ0UIvwE/giphy.gif",
     "Would I rather be feared or loved? Easy. Both. I want people to be afraid of how much they love my standup reminders. ☕\nhttps://media.giphy.com/media/hTfhyOtBcBWLeGnMpp/giphy.gif",
     "Prison Mike says: in prison you are somebody's b*tch. Here, you just need to write your status! 🧣\nhttps://media.giphy.com/media/aZeFIjI9hNcJ2/giphy.gif",
-    "Me waiting for your updates past 12:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
+    "Me waiting for your updates past 13:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
     "If I don't have some updates soon, I might die. 🍰\nhttps://media.giphy.com/media/5wWf7H89PisM6An8UAU/giphy.gif",
 ]
 
@@ -216,7 +216,7 @@ def post_daily_thread():
         standup_text = (
             f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X>\n\n"
             "*Daily — status thread* 💥\n"
-            "*Please reply here before 12:00 with:*\n"
+            "*Please reply here before 13:00 with:*\n"
             "*Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
             "*Today (by EOD or days remaining):* what you'll complete / how many days left\n"
             "*Blockers / Risks:* who/what is needed to unblock\n"
@@ -419,7 +419,7 @@ def main():
     scheduler = BackgroundScheduler(timezone=LOCAL_TIMEZONE)
     # Weekday schedule in Europe/Paris local time.
     scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=9, minute=4)
-    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=11, minute=30)
+    scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=12, minute=30)
     scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=17, minute=0)
     scheduler.add_job(post_end_of_day_escalation, 'cron', day_of_week='mon-fri', hour=21, minute=0)
     
