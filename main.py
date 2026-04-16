@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import date, datetime
+from datetime import date
 import random
 from zoneinfo import ZoneInfo
 
@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import requests
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
-from supabase import create_client, Client
+from supabase import create_client
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
@@ -277,8 +277,6 @@ def check_missing_reports():
     if not daily_thread_ts:
         logger.warning("No daily thread found for today. Skipping check.")
         return
-
-    today = date.today().isoformat()
 
     try:
         missing_users = get_missing_users_today()
