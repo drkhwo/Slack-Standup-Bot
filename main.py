@@ -87,6 +87,14 @@ END_OF_DAY_GIFS = [
     "https://media.giphy.com/media/ISOckXUybVfQ4/giphy.gif",
 ]
 
+THREAD_CLOSED_MESSAGES = [
+    "That's a wrap, folks. This thread is officially *CLOSED* for today.\nIf you have updates after this — save them for tomorrow's thread. I said what I said.\n— Michael Scott 💙🌅",
+    "Okay. OKAY. The standup thread is now closed. Do not — I repeat — DO NOT post your update here tomorrow. That's not how time works.\n— Michael Scott 💙🌅",
+    "This thread has left the building. Updates from this point on belong in *tomorrow's* thread. You're welcome.\n— Michael Scott 💙🌅",
+    "It's the end of the workday and I am feeling *emotional*. This thread gave so much. Now it rests. Post tomorrow. That's what she said.\n— Michael Scott 💙🌅",
+    "Thread closed. If you're reading this tomorrow and thinking about replying here — don't. I believe in you. I also believe in consequences.\n— Michael Scott 💙🌅",
+]
+
 def get_supabase_client():
     if not SUPABASE_URL or not SUPABASE_KEY:
         return None
@@ -305,6 +313,27 @@ def check_missing_reports():
         logger.error(f"Error checking missing reports: {e}")
 
 
+def post_thread_closed():
+    global daily_thread_ts
+    if SKIP_TODAY == "1":
+        logger.info("SKIP_TODAY is set — skipping thread closed message.")
+        return
+    if not daily_thread_ts:
+        logger.warning("No daily thread found for today. Skipping thread closed message.")
+        return
+
+    try:
+        message = random.choice(THREAD_CLOSED_MESSAGES)
+        app.client.chat_postMessage(
+            channel=CHANNEL_ID,
+            thread_ts=daily_thread_ts,
+            text=message
+        )
+        logger.info("Posted thread closed message.")
+    except Exception as e:
+        logger.error(f"Error posting thread closed message: {e}")
+
+
 def post_end_of_day_escalation():
     global daily_thread_ts
     if SKIP_TODAY == "1":
@@ -488,6 +517,7 @@ def main():
     scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=9, minute=4)
     scheduler.add_job(send_personal_standup_reminder, 'cron', day_of_week='mon-fri', hour=9, minute=15)
     scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=12, minute=30)
+    scheduler.add_job(post_thread_closed, 'cron', day_of_week='mon-fri', hour=18, minute=0)
     scheduler.add_job(post_end_of_day_escalation, 'cron', day_of_week='mon-fri', hour=21, minute=0)
     
     scheduler.start()
