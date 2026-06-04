@@ -73,26 +73,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 REMINDER_MEMES = [
-    "I DECLARE... STANDUP! 📢\nhttps://media.giphy.com/media/8nM6YNtvjuezzD7DNh/giphy.gif",
-    "NO GOD! PLEASE NO! Forgot to write your status? 😱\nhttps://media.giphy.com/media/vyTnNTrs3wqQ0UIvwE/giphy.gif",
-    "Would I rather be feared or loved? Easy. Both. I want people to be afraid of how much they love my standup reminders. ☕\nhttps://media.giphy.com/media/hTfhyOtBcBWLeGnMpp/giphy.gif",
-    "Prison Mike says: in prison you are somebody's b*tch. Here, you just need to write your status! 🧣\nhttps://media.giphy.com/media/aZeFIjI9hNcJ2/giphy.gif",
-    "Me waiting for your updates past 13:00... 🕒\nhttps://media.giphy.com/media/ui1hpJSyBDWlG/giphy.gif",
-    "If I don't have some updates soon, I might die. 🍰\nhttps://media.giphy.com/media/5wWf7H89PisM6An8UAU/giphy.gif",
+    "Tiny status update, huge reduction in uncertainty. Please drop yours before 13:00. 📍\nhttps://media.giphy.com/media/QSxLddAZGgYS5OH2i8/giphy.gif",
+    "The thread is doing a wellness check on your update. It misses you. 🧵\nhttps://media.giphy.com/media/j4r8T6pi88C7LxFxfz/giphy.gif",
+    "Quick async favor: turn today's mystery into a status update. 🔎\nhttps://media.giphy.com/media/BR5Fhn44CUwpmxKuLp/giphy.gif",
+    "If the plan changed, the thread should know. Status update time. 🕐\nhttps://media.giphy.com/media/qNl3Zqg5dkhxvRP4Kb/giphy.gif",
+    "A brief update now saves a bunch of context hunting later. 🧭\nhttps://media.giphy.com/media/9k70aUGqqXAuQt9RYi/giphy.gif",
+    "Please feed the standup thread: yesterday, today, blockers. It runs on clarity. ⚡\nhttps://media.giphy.com/media/QPQ3xlJhqR1BXl89RG/giphy.gif",
 ]
 
 END_OF_DAY_GIFS = [
-    "https://media.giphy.com/media/l378giAZgxPw3eO52/giphy.gif",
-    "https://media.giphy.com/media/BEob5qwFkSJ7G/giphy.gif",
-    "https://media.giphy.com/media/ISOckXUybVfQ4/giphy.gif",
+    "https://media.giphy.com/media/PMmNA8jtiohoZjvWlC/giphy.gif",
+    "https://media.giphy.com/media/L2ePMMz84gG2ntBSG8/giphy.gif",
+    "https://media.giphy.com/media/qGK80QKZ77Y8xOQWpj/giphy.gif",
 ]
 
 THREAD_CLOSED_MESSAGES = [
-    "That's a wrap, folks. This thread is officially *CLOSED* for today.\nIf you have updates after this — save them for tomorrow's thread. I said what I said.\n— Michael Scott 💙🌅",
-    "Okay. OKAY. The standup thread is now closed. Do not — I repeat — DO NOT post your update here tomorrow. That's not how time works.\n— Michael Scott 💙🌅",
-    "This thread has left the building. Updates from this point on belong in *tomorrow's* thread. You're welcome.\n— Michael Scott 💙🌅",
-    "It's the end of the workday and I am feeling *emotional*. This thread gave so much. Now it rests. Post tomorrow. That's what she said.\n— Michael Scott 💙🌅",
-    "Thread closed. If you're reading this tomorrow and thinking about replying here — don't. I believe in you. I also believe in consequences.\n— Michael Scott 💙🌅",
+    "This thread is officially *CLOSED* for today.\nLate updates can wait for tomorrow's thread. Future archaeology avoided. 💙🌅",
+    "End of day checkpoint: this standup thread is now *CLOSED*.\nTomorrow gets a fresh thread and a fresh chance to be on time. 💙🌅",
+    "Thread closed. Please do not add tomorrow's update here.\nChronology is fragile. Let's protect it. 💙🌅",
+    "That's a wrap for today's standup thread.\nIf the update did not make it in, bring it to tomorrow's thread. 💙🌅",
+    "Standup thread closed for the day.\nNo new updates here after this point; tomorrow gets its own clean timeline. 💙🌅",
 ]
 
 def get_supabase_client():
