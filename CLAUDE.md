@@ -60,7 +60,7 @@ Tests mock all external dependencies (Slack, Supabase, APScheduler) at module lo
 2. `handle_message_events()` listens for replies in that thread. Each reply is upserted into `standup_reports` (Supabase) and gets a 💙 reaction. Subsequent replies from the same user on the same day are appended to the existing record.
 3. `check_missing_reports()` queries `standup_reports` for today's date, cross-references `TEAM_USER_IDS` and vacation data, then pings missing users in-thread with a meme.
 4. `post_end_of_day_escalation()` does the same check but pings the CEO (`U068KKKNP9R`) if anyone is still missing.
-5. `get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves` with pagination, maps names to Slack IDs via `TEAM_MAPPING`, returns a set of absent UIDs or `"error"` on failure.
+5. `get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves` with pagination, maps Vacation Tracker users to Slack IDs via `TEAM_MAPPING`, returns a set of absent UIDs or `"error"` on failure.
 
 **Supabase tables:**
 - `standup_reports` — one row per user per day (`user_id`, `date`, `raw_text`, `thread_ts`); see `setup.sql`
@@ -68,7 +68,7 @@ Tests mock all external dependencies (Slack, Supabase, APScheduler) at module lo
 
 **Deployment:** Dockerfile + `railway.toml` deploy `main.py` on Railway. See `DEPLOY.md` for setup steps.
 
-**Team membership:** `TEAM_MAPPING` in `main.py` maps Slack user IDs to Vacation Tracker names. `TEAM_USER_IDS` derives from it, excluding the CEO (`U068KKKNP9R`). To add/remove a team member: edit `TEAM_MAPPING` and redeploy. No other changes needed.
+**Team membership:** `TEAM_MAPPING` in `main.py` maps Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`). `TEAM_USER_IDS` derives from it, excluding the CEO (`U068KKKNP9R`). To add/remove a team member: edit `TEAM_MAPPING` and redeploy. No other changes needed.
 
 **Skipping reminders for a day:** Set `SKIP_TODAY=1` in Railway env vars. Important: `SKIP_TODAY=0` does NOT skip — only the value `"1"` does. Remove or set to `0` to resume normal operation.
 

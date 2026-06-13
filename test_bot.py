@@ -708,7 +708,7 @@ class TestMainFunction(unittest.TestCase):
         mock_app.client.chat_postMessage.return_value = {"ts": "123"}
         bot_module.main()
         mock_sched_cls.assert_called_once_with(timezone=bot_module.LOCAL_TIMEZONE)
-        self.assertEqual(mock_sched.add_job.call_count, 4)
+        self.assertEqual(mock_sched.add_job.call_count, 5)
         add_job_calls = mock_sched.add_job.call_args_list
         self.assertEqual(add_job_calls[0][0][0], bot_module.post_daily_thread)
         self.assertEqual(add_job_calls[0][1]['hour'], 9)
@@ -718,8 +718,10 @@ class TestMainFunction(unittest.TestCase):
         self.assertEqual(add_job_calls[2][0][0], bot_module.check_missing_reports)
         self.assertEqual(add_job_calls[2][1]['hour'], 12)
         self.assertEqual(add_job_calls[2][1]['minute'], 30)
-        self.assertEqual(add_job_calls[3][0][0], bot_module.post_end_of_day_escalation)
-        self.assertEqual(add_job_calls[3][1]['hour'], 21)
+        self.assertEqual(add_job_calls[3][0][0], bot_module.post_thread_closed)
+        self.assertEqual(add_job_calls[3][1]['hour'], 18)
+        self.assertEqual(add_job_calls[4][0][0], bot_module.post_end_of_day_escalation)
+        self.assertEqual(add_job_calls[4][1]['hour'], 21)
         mock_sched.start.assert_called_once()
 
 
@@ -758,7 +760,7 @@ class TestGetVacationUsers(unittest.TestCase):
                     "status": "APPROVED",
                     "startDate": "2026-02-26",
                     "endDate": "2026-02-27",
-                    "user": {"name": "Anton Tyutin"},
+                    "user": {"name": "Different Display Name", "email": "tapoton@replika.ai"},
                 },
                 {
                     "id": "leave-2",
@@ -801,7 +803,7 @@ class TestGetVacationUsers(unittest.TestCase):
                 {
                     "id": "leave-3",
                     "status": "DENIED",
-                    "user": {"name": "Ed"},
+                    "user": {"name": "eddy"},
                 },
             ],
         }
@@ -832,7 +834,7 @@ class TestGetVacationUsers(unittest.TestCase):
         page2.json.return_value = {
             "status": "ok",
             "nextToken": None,
-            "data": [{"id": "l2", "status": "APPROVED", "user": {"name": "Ed"}}],
+            "data": [{"id": "l2", "status": "APPROVED", "user": {"name": "eddy"}}],
         }
         page2.raise_for_status = MagicMock()
 
@@ -842,7 +844,70 @@ class TestGetVacationUsers(unittest.TestCase):
 
         self.assertEqual(mock_get.call_count, 2)
         self.assertIn("U035U3KTFL5", result)  # Anton
-        self.assertIn("U085J8B5TJ6", result)  # Ed
+        self.assertIn("U085J8B5TJ6", result)  # eddy
+
+    @patch('main.requests.get')
+    def test_matches_vacationers_by_email_before_name(self, mock_get):
+        """TC-11-04A: Email matching handles Vacation Tracker display-name drift"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "ok",
+            "nextToken": None,
+            "data": [
+                {
+                    "id": "leave-1",
+                    "status": "APPROVED",
+                    "user": {"name": "artem", "email": "artiom@replika.com"},
+                },
+                {
+                    "id": "leave-2",
+                    "status": "APPROVED",
+                    "user": {"name": "ed", "email": "ed@replika.ai"},
+                },
+            ],
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = bot_module.get_vacation_users()
+
+        self.assertIn("U07SR89J8NA", result)  # artiom
+        self.assertIn("U085J8B5TJ6", result)  # eddy
+
+    @patch('main.requests.get')
+    def test_matches_vacationers_by_vacation_tracker_user_id_first(self, mock_get):
+        """TC-11-04B: Vacation Tracker user IDs survive display-name and email changes"""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "ok",
+            "nextToken": None,
+            "data": [
+                {
+                    "id": "leave-1",
+                    "userId": "slack-986ddb5f-8fca-4fba-bb75-94c26a22afb7",
+                    "status": "APPROVED",
+                    "user": {"name": "Giorgio", "email": ""},
+                },
+                {
+                    "id": "leave-2",
+                    "status": "APPROVED",
+                    "user": {
+                        "id": "slack-720b8eaa-3d39-4bcd-9d96-57081203ab2d",
+                        "name": "Pawel Changed",
+                        "email": "changed@example.com",
+                    },
+                },
+            ],
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = bot_module.get_vacation_users()
+
+        self.assertIn("U09QE0E0HHQ", result)  # Giorgio
+        self.assertIn("U08EFQCMJ3U", result)  # Pawel
 
     @patch('main.requests.get')
     def test_returns_error_on_http_failure(self, mock_get):

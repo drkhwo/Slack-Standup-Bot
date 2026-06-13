@@ -34,36 +34,37 @@ LOCAL_TIMEZONE = ZoneInfo("Europe/Paris")
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
 
-# Mapping: Slack User ID -> Name as it appears in Vacation Tracker
+# Mapping: Slack User ID -> Vacation Tracker user identity.
+# Vacation Tracker user IDs are the primary matching key; email/name are fallbacks.
 TEAM_MAPPING = {
     # == @eng-team ==
-    "U02H9RXPKGT": "Alexey Leshchuk",
-    "U08SKHD45U2": "Anastasia Kondratyuk",
-    "U06A6MV64R2": "andrei",
-    "U035U3KTFL5": "Anton Tyutin",
-    "U08MW9K5K0U": "Ban Markovic",
-    "U097GKF641M": "Cristian Matzov",
-    "U085J8B5TJ6": "Ed",
-    "U097GKK3UUX": "Georgi Todorov",
-    "U011Q8J1PDK": "Georgii Andrianov",
-    "U09QE0E0HHQ": "Giorgio Sarno",
-    "U088WHYP2P6": "Gvantsa Nebadze",
-    "U0965UA3XQ8": "maksim",
-    "U08EFQCMJ3U": "Paweł",
-    "U09T69U1Y5V": "Sebastian",
-    "USMQ8CRU6": "Semyon Vlasov",
-    "U04SBH53P9C": "Sergei Mironov",
-    "U0821BRMJ4R": "Stan Khvo",
-    "U098DPA85PY": "Wojciech Klarowski",
-    "U09MF4SB7C2": "Xhonino (John)",
+    "U02H9RXPKGT": {"vt_user_id": "slack-422616fd-66dc-47a2-81dc-f032f05c1c4d", "name": "Alexey Leshchuk", "email": "a.leshchuk@replika.ai"},
+    "U08SKHD45U2": {"vt_user_id": "slack-8596b09c-455c-45d3-a169-f780cb4a2bb4", "name": "Anastasia Kondratyuk", "email": "nastassia@replika.com"},
+    "U06A6MV64R2": {"vt_user_id": "slack-cd6e696b-b46c-4016-a83b-6f33bdec289d", "name": "andrei", "email": "a.vorsin@replika.ai"},
+    "U035U3KTFL5": {"vt_user_id": "slack-e8a42dfa-6dc0-421a-ae5d-977b46ec1cdb", "name": "Anton Tyutin", "email": "tapoton@replika.ai"},
+    "U08MW9K5K0U": {"vt_user_id": "slack-2623664f-e3be-4960-b80a-8b6f6a3c3efb", "name": "Ban Markovic", "email": "ban@replika.com"},
+    "U097GKF641M": {"vt_user_id": "slack-8db64651-178b-4af9-92c0-69d1d58e979d", "name": "Cristian Matzov", "email": "cristian.matazov.pturtle@replika.com"},
+    "U085J8B5TJ6": {"vt_user_id": "slack-c847534e-34c8-49eb-b711-5a7df4efa0bd", "name": "eddy", "email": "ed@replika.ai"},
+    "U097GKK3UUX": {"vt_user_id": "slack-aa408a12-092c-44c2-83dc-1937934862d2", "name": "Georgi Todorov", "email": "georgi.todorov.pturtle@replika.com"},
+    "U011Q8J1PDK": {"vt_user_id": "slack-9c1dd668-ff38-4e5f-b055-094d54eb4178", "name": "Georgii Andrianov", "email": "g.andrianov@replika.ai"},
+    "U09QE0E0HHQ": {"vt_user_id": "slack-986ddb5f-8fca-4fba-bb75-94c26a22afb7", "name": "Giorgio", "email": "giorgio@replika.com"},
+    "U088WHYP2P6": {"vt_user_id": "slack-b505762e-5d73-4584-8652-3c2489289924", "name": "Gvantsa Nebadze", "email": "gvantsa@replika.com"},
+    "U0965UA3XQ8": {"vt_user_id": "slack-8878392a-0160-4ed5-859b-b38e2b76aeb8", "name": "maksim", "email": "maksim@replika.com"},
+    "U08EFQCMJ3U": {"vt_user_id": "slack-720b8eaa-3d39-4bcd-9d96-57081203ab2d", "name": "Paweł", "email": "pawel@replika.com"},
+    "U09T69U1Y5V": {"vt_user_id": "slack-490cfbb6-3da5-4cc2-8210-0e862d68521f", "name": "Sebastian", "email": "sebastian@replika.com"},
+    "USMQ8CRU6": {"vt_user_id": "slack-a99afe34-239c-4d72-b80a-40ee405b8e5f", "name": "Semyon Vlasov", "email": "semyon@replika.ai"},
+    "U04SBH53P9C": {"vt_user_id": "slack-16602c14-6349-4187-8d72-f29c97ad74ac", "name": "Sergei Mironov", "email": "s.mironov@replika.ai"},
+    "U0821BRMJ4R": {"vt_user_id": "slack-876c64e7-4bae-496c-a5b8-2bdfbc192440", "name": "Stan Khvo", "email": "stas@replika.ai"},
+    "U098DPA85PY": {"vt_user_id": "slack-3d7c669c-4433-4bad-8a85-76c86e71caa6", "name": "Wojciech Klarowski", "email": "wojciech@replika.com"},
+    "U09MF4SB7C2": {"vt_user_id": "slack-f6986bc1-2c20-46ba-b9a1-dcef0329346c", "name": "John Deda", "email": "johndeda@replika.com"},
     
     # == @brand-team ==
-    "U07SR89J8NA": "Artiom Zverev",
-    "U0B670M7HU6": "danil levinson",
-    "U0B6RSB4M5E": "Vladimir Lesunov",
+    "U07SR89J8NA": {"vt_user_id": "slack-9df7fc6d-ecb9-4c8d-bb8f-779e39a91a84", "name": "artiom", "email": "artiom@replika.com"},
+    "U0B670M7HU6": {"vt_user_id": "", "name": "danil levinson", "email": ""},
+    "U0B6RSB4M5E": {"vt_user_id": "slack-4c5703ea-8892-429c-94ff-4d1f09fb7ab3", "name": "Vladimir Lesunov", "email": "vlad@replika.com"},
     
     # == Others ==
-    "U068KKKNP9R": "dmytro 'kino' klochko"
+    "U068KKKNP9R": {"vt_user_id": "slack-893f60ed-5bb0-429c-b03b-68e0eb54c35a", "name": "dmytro klochko", "email": "1@replika.com"}
 }
 
 # Collect all user IDs for report tracking, excluding CEO (@dk - U068KKKNP9R)
@@ -107,6 +108,39 @@ supabase = None
 VACATION_TRACKER_API_URL = "https://api.vacationtracker.io"
 
 
+def _normalize_vacation_tracker_value(value):
+    return (value or "").strip().casefold()
+
+
+def _build_vacation_tracker_lookup():
+    vt_user_id_to_uid = {}
+    email_to_uid = {}
+    name_to_uid = {}
+
+    for uid, identity in TEAM_MAPPING.items():
+        if isinstance(identity, str):
+            vt_user_id = ""
+            name = identity
+            email = ""
+        else:
+            vt_user_id = identity.get("vt_user_id", "")
+            name = identity.get("name", "")
+            email = identity.get("email", "")
+
+        normalized_vt_user_id = _normalize_vacation_tracker_value(vt_user_id)
+        normalized_email = _normalize_vacation_tracker_value(email)
+        normalized_name = _normalize_vacation_tracker_value(name)
+
+        if normalized_vt_user_id:
+            vt_user_id_to_uid[normalized_vt_user_id] = uid
+        if normalized_email:
+            email_to_uid[normalized_email] = uid
+        if normalized_name:
+            name_to_uid[normalized_name] = uid
+
+    return vt_user_id_to_uid, email_to_uid, name_to_uid
+
+
 def send_alert(text):
     """Send a short notification to the monitoring/test channel (if configured)."""
     if not app or not ALERT_CHANNEL_ID:
@@ -127,8 +161,7 @@ def get_vacation_users():
 
     today = date.today().isoformat()
 
-    # Reverse mapping: lowercase name -> Slack user ID
-    name_to_uid = {name.lower(): uid for uid, name in TEAM_MAPPING.items()}
+    vt_user_id_to_uid, email_to_uid, name_to_uid = _build_vacation_tracker_lookup()
 
     try:
         headers = {
@@ -166,10 +199,17 @@ def get_vacation_users():
 
                 # Try nested user object (API may use "user" or "userUsers")
                 user_info = leave.get("user") or leave.get("userUsers") or {}
-                user_name = user_info.get("name", "").lower()
+                user_vt_id = _normalize_vacation_tracker_value(user_info.get("id") or leave.get("userId"))
+                user_email = _normalize_vacation_tracker_value(user_info.get("email"))
+                user_name = _normalize_vacation_tracker_value(user_info.get("name"))
+                slack_user_id = (
+                    vt_user_id_to_uid.get(user_vt_id)
+                    or email_to_uid.get(user_email)
+                    or name_to_uid.get(user_name)
+                )
 
-                if user_name in name_to_uid:
-                    vacation_users.add(name_to_uid[user_name])
+                if slack_user_id:
+                    vacation_users.add(slack_user_id)
                     logger.info(f"Found vacationer (API): {user_info.get('name')}")
 
             next_token = data.get("nextToken")

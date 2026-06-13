@@ -123,7 +123,7 @@ Current verified suite size: `66` tests.
 
 - Only one bot instance should run at a time.
 - `TEAM_MAPPING` is hardcoded and must be kept current when the roster changes.
-- Vacation Tracker name matching depends on exact normalized names.
+- Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
 - The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Random motivational GIF or quote messages are no longer part of the production behavior.
 - End-of-day escalation stays in the standup thread and does not write to `ALERT_CHANNEL_ID`.

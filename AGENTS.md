@@ -69,7 +69,7 @@ These values come from APScheduler cron jobs in code and should be treated as th
 
 ### Vacation Tracker integration
 
-`get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves`, follows `nextToken` pagination, filters for `APPROVED` leave records, and maps Vacation Tracker names to Slack IDs using `TEAM_MAPPING`.
+`get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves`, follows `nextToken` pagination, filters for `APPROVED` leave records, and maps Vacation Tracker users to Slack IDs using `TEAM_MAPPING`. Matching prefers stable Vacation Tracker user ID, then Vacation Tracker email, and falls back to normalized display name.
 
 If the API call fails, the function returns `"error"` and the bot continues operating without blocking standup collection.
 
@@ -101,7 +101,7 @@ Required record:
 
 ## Team membership
 
-`TEAM_MAPPING` in `main.py` maps Slack user IDs to Vacation Tracker names.
+`TEAM_MAPPING` in `main.py` maps Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`).
 
 `TEAM_USER_IDS` is derived from that mapping and excludes the CEO (`U068KKKNP9R`). When the team changes, update `TEAM_MAPPING` and verify that the excluded user logic is still correct.
 
