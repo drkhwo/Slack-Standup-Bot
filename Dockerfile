@@ -4,7 +4,12 @@ WORKDIR /app
 
 # Install dependencies
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir apscheduler>=3.11.2 python-dotenv>=1.2.1 slack-bolt>=1.27.0 supabase>=2.27.2
+RUN pip install --no-cache-dir \
+    "apscheduler>=3.11.2" \
+    "python-dotenv>=1.2.1" \
+    "requests>=2.31.0" \
+    "slack-bolt>=1.27.0" \
+    "supabase>=2.27.2"
 
 # Copy application code
 COPY main.py phrases.py ./
