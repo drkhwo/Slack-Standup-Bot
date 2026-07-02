@@ -74,26 +74,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 REMINDER_MEMES = [
-    "Tiny status update, huge reduction in uncertainty. Please drop yours before 13:00. 📍\nhttps://media.giphy.com/media/QSxLddAZGgYS5OH2i8/giphy.gif",
-    "The thread is doing a wellness check on your update. It misses you. 🧵\nhttps://media.giphy.com/media/j4r8T6pi88C7LxFxfz/giphy.gif",
-    "Quick async favor: turn today's mystery into a status update. 🔎\nhttps://media.giphy.com/media/BR5Fhn44CUwpmxKuLp/giphy.gif",
-    "If the plan changed, the thread should know. Status update time. 🕐\nhttps://media.giphy.com/media/qNl3Zqg5dkhxvRP4Kb/giphy.gif",
-    "A brief update now saves a bunch of context hunting later. 🧭\nhttps://media.giphy.com/media/9k70aUGqqXAuQt9RYi/giphy.gif",
-    "Please feed the standup thread: yesterday, today, blockers. It runs on clarity. ⚡\nhttps://media.giphy.com/media/QPQ3xlJhqR1BXl89RG/giphy.gif",
+    "Regional Management has noticed a missing standup update. Yesterday, today, blockers. Before 13:00. 🏢\nhttps://media.giphy.com/media/ghuvaCOI6GOoTX0RmH/giphy.gif",
+    "Corporate needs one status update from you. This is, somehow, urgent and ceremonial. 📎\nhttps://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif",
+    "The conference room has concerns. Please reply with yesterday, today, blockers. 🗂️\nhttps://media.giphy.com/media/YJfHgYS8UWiJYONfwZ/giphy.gif",
+    "This standup thread is missing one attachment: your update. Regional Manager is escalating emotionally. 🧾\nhttps://media.giphy.com/media/2oUfvvUgQHnLsQWFMW/giphy.gif",
+    "Please make the thread proud: status, ETA, blockers. The office morale budget depends on it. 🏆\nhttps://media.giphy.com/media/HJB9Nq9RMZgZlLssZF/giphy.gif",
+    "Standup compliance party starts after your reply. Yesterday, today, blockers. 🎉\nhttps://media.giphy.com/media/l0amJzVHIAfl7jMDos/giphy.gif",
 ]
 
 END_OF_DAY_GIFS = [
-    "https://media.giphy.com/media/PMmNA8jtiohoZjvWlC/giphy.gif",
-    "https://media.giphy.com/media/L2ePMMz84gG2ntBSG8/giphy.gif",
-    "https://media.giphy.com/media/qGK80QKZ77Y8xOQWpj/giphy.gif",
+    "https://media.giphy.com/media/ghuvaCOI6GOoTX0RmH/giphy.gif",
+    "https://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif",
+    "https://media.giphy.com/media/2oUfvvUgQHnLsQWFMW/giphy.gif",
 ]
 
 THREAD_CLOSED_MESSAGES = [
-    "This thread is officially *CLOSED* for today.\nLate updates can wait for tomorrow's thread. Future archaeology avoided. 💙🌅",
-    "End of day checkpoint: this standup thread is now *CLOSED*.\nTomorrow gets a fresh thread and a fresh chance to be on time. 💙🌅",
-    "Thread closed. Please do not add tomorrow's update here.\nChronology is fragile. Let's protect it. 💙🌅",
-    "That's a wrap for today's standup thread.\nIf the update did not make it in, bring it to tomorrow's thread. 💙🌅",
-    "Standup thread closed for the day.\nNo new updates here after this point; tomorrow gets its own clean timeline. 💙🌅",
+    "This thread is officially *CLOSED* for today.\nLate updates go to tomorrow's meeting agenda. Regional Management thanks you. 💙📋",
+    "End of day checkpoint: this standup thread is now *CLOSED*.\nTomorrow gets a fresh thread and another chance to impress the branch. 💙🏢",
+    "Thread closed. Please do not add tomorrow's update here.\nChronology is fragile, and so is middle management. 💙🗂️",
+    "That's a wrap for today's standup thread.\nIf your update missed the train, tomorrow's thread has a very serious clipboard waiting. 💙🚂",
+    "Standup thread closed for the day.\nNo new updates here after this point; the paper trail deserves dignity. 💙📎",
 ]
 
 def get_supabase_client():
@@ -332,7 +332,7 @@ def post_daily_thread():
 
         # Alert to monitoring channel
         thread_link = f"https://slack.com/archives/{CHANNEL_ID}/p{daily_thread_ts.replace('.', '')}"
-        send_alert(f"✅ Daily standup thread posted → <{thread_link}|open thread>")
+        send_alert(f"📋 Regional Management posted today's standup thread → <{thread_link}|open thread>")
         
         # Save thread timestamp to database
         if supabase:
@@ -348,20 +348,20 @@ def post_daily_thread():
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="⚠️ _Failed to check vacations (channel or API access error)._"
+                text="⚠️ _Vacation Tracker left the conference room. Vacation status is unknown._"
             )
         elif vacations:
             mentions = ", ".join([f"<@{uid}>" for uid in vacations])
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text=f"🌴 *Out today (Vacation/Off):* {mentions}\n_Enjoy your time off!_"
+                text=f"🌴 *Out today, officially excused by Regional Management:* {mentions}\n_Enjoy the PTO. The branch will survive somehow._"
             )
         else:
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="🌴 *Everyone's in today!* (No one on vacation)"
+                text="🏢 *Full office today:* Vacation Tracker says nobody is out. The room is full; expectations are higher."
             )
             
     except Exception as e:
@@ -392,10 +392,10 @@ def check_missing_reports():
                 text=f"Hey {mentions}! {meme}"
             )
             logger.info(f"Reminded missing users: {missing_users}")
-            send_alert(f"⏰ Reminder sent to {len(missing_users)} people who haven't reported yet")
+            send_alert(f"🧯 Regional Management reminded {len(missing_users)} missing standup reporter(s)")
         else:
             logger.info("All active users have reported. No reminders needed!")
-            send_alert("🎉 All team members have reported — no reminders needed!")
+            send_alert("🏆 All standups are in. Regional Management is pretending this was never in doubt.")
             
     except Exception as e:
         logger.error(f"Error checking missing reports: {e}")
@@ -439,8 +439,8 @@ def post_end_of_day_escalation():
         mentions = " ".join([f"<@{uid}>" for uid in missing_users])
         sad_gif = random.choice(END_OF_DAY_GIFS)
         text = (
-            f"End of day check: still no update from {mentions}. "
-            f"<@U068KKKNP9R>, this one needs attention.\n{sad_gif}"
+            f"End-of-day branch review: still no update from {mentions}. "
+            f"<@U068KKKNP9R>, this case has reached the Regional Manager desk.\n{sad_gif}"
         )
 
         app.client.chat_postMessage(
@@ -509,7 +509,7 @@ def send_personal_standup_reminder():
 
         app.client.chat_postMessage(
             channel=PERSONAL_REMINDER_USER_ID,
-            text=f"👋 Hey! Don't forget to post your standup before 13:00.\n\n{body}{thread_link}"
+            text=f"👋 Regional Management noticed your standup is not in yet. Please post before 13:00.\n\n{body}{thread_link}"
         )
         logger.info(f"Personal standup reminder sent to {PERSONAL_REMINDER_USER_ID}")
 
@@ -581,7 +581,7 @@ def send_deploy_notification():
     if os.environ.get("DEPLOY_NOTIFY") != "1":
         return
     send_alert(
-        "🚀 Bot deployed successfully!\n"
+        "🚀 Regional Manager is back online.\n"
         "Current logic version: *Standup collection mode*."
     )
     logger.info("Deploy notification sent.")

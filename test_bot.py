@@ -5,6 +5,7 @@ or: python test_bot.py
 """
 
 import os
+import re
 import sys
 import unittest
 from unittest.mock import MagicMock, patch, call
@@ -563,6 +564,36 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         self.assertEqual(eq_call[0][1], date.today().isoformat())
 
 
+class TestNotificationAssets(unittest.TestCase):
+
+    OFFICE_GIPHY_IDS = {
+        "ghuvaCOI6GOoTX0RmH",
+        "mNqKJi7UyK5CAO1YyM",
+        "YJfHgYS8UWiJYONfwZ",
+        "2oUfvvUgQHnLsQWFMW",
+        "HJB9Nq9RMZgZlLssZF",
+        "l0amJzVHIAfl7jMDos",
+    }
+
+    def _extract_giphy_ids(self, messages):
+        ids = []
+        for message in messages:
+            match = re.search(r"https://media\.giphy\.com/media/([^/]+)/giphy\.gif", message)
+            self.assertIsNotNone(match, f"Missing GIPHY URL in message: {message}")
+            ids.append(match.group(1))
+        return ids
+
+    def test_reminder_gifs_use_regional_manager_theme(self):
+        """TC-08-05: Reminder GIFs stay in the Regional Manager theme."""
+        gif_ids = self._extract_giphy_ids(bot_module.REMINDER_MEMES)
+        self.assertTrue(set(gif_ids).issubset(self.OFFICE_GIPHY_IDS))
+
+    def test_end_of_day_gifs_use_regional_manager_theme(self):
+        """TC-08E-05: Escalation GIFs stay in the Regional Manager theme."""
+        gif_ids = self._extract_giphy_ids(bot_module.END_OF_DAY_GIFS)
+        self.assertTrue(set(gif_ids).issubset(self.OFFICE_GIPHY_IDS))
+
+
 class TestEndOfDayEscalation(unittest.TestCase):
 
     def setUp(self):
@@ -574,7 +605,7 @@ class TestEndOfDayEscalation(unittest.TestCase):
         bot_module.CHANNEL_ID = 'C08UT7VP2TA'
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
-    @patch('main.random.choice', return_value="https://media.giphy.com/media/l378giAZgxPw3eO52/giphy.gif")
+    @patch('main.random.choice', return_value="https://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif")
     @patch('main.get_vacation_users', return_value=set())
     def test_posts_when_users_are_missing(self, mock_vacation, mock_choice):
         """TC-08E-01: End-of-day escalation posts when users are still missing"""
@@ -588,9 +619,9 @@ class TestEndOfDayEscalation(unittest.TestCase):
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'C08UT7VP2TA')
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
-        self.assertIn("End of day check: still no update from <@U222> <@U333>.", call_kwargs['text'])
-        self.assertIn("<@U068KKKNP9R>, this one needs attention.", call_kwargs['text'])
-        self.assertIn("https://media.giphy.com/media/l378giAZgxPw3eO52/giphy.gif", call_kwargs['text'])
+        self.assertIn("End-of-day branch review: still no update from <@U222> <@U333>.", call_kwargs['text'])
+        self.assertIn("<@U068KKKNP9R>, this case has reached the Regional Manager desk.", call_kwargs['text'])
+        self.assertIn("https://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif", call_kwargs['text'])
 
     @patch('main.get_vacation_users', return_value=set())
     def test_does_nothing_when_no_one_is_missing(self, mock_vacation):
