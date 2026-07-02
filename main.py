@@ -232,6 +232,53 @@ def get_vacation_users():
         return "error"
 
 
+def get_thread_reported_users():
+    """Return team members who have any non-bot reply in the active Slack thread."""
+    if not app or not CHANNEL_ID or not daily_thread_ts:
+        return set()
+
+    reported_users = set()
+    cursor = None
+
+    try:
+        while True:
+            request = {
+                "channel": CHANNEL_ID,
+                "ts": daily_thread_ts,
+                "limit": 1000,
+            }
+            if cursor:
+                request["cursor"] = cursor
+
+            response = app.client.conversations_replies(**request)
+
+            messages = response.get("messages") or []
+            if not isinstance(messages, list):
+                messages = []
+
+            for message in messages:
+                user_id = message.get("user")
+                if not user_id or message.get("bot_id"):
+                    continue
+                if message.get("subtype") in {"bot_message", "message_deleted"}:
+                    continue
+                if user_id in TEAM_USER_IDS:
+                    reported_users.add(user_id)
+
+            metadata = response.get("response_metadata") or {}
+            next_cursor = metadata.get("next_cursor") if isinstance(metadata, dict) else ""
+            cursor = next_cursor if isinstance(next_cursor, str) and next_cursor else None
+            if not cursor:
+                break
+
+        if reported_users:
+            logger.info(f"Users found in Slack thread history: {reported_users}")
+        return reported_users
+    except Exception as e:
+        logger.warning(f"Could not reconcile Slack thread history: {e}")
+        return set()
+
+
 def get_missing_users_today():
     """Return users who still have not posted an update today."""
     if not supabase:
@@ -242,6 +289,7 @@ def get_missing_users_today():
 
     response = supabase.table("standup_reports").select("user_id").eq("date", today).execute()
     reported_users = {row["user_id"] for row in response.data}
+    reported_users.update(get_thread_reported_users())
 
     vacation_users = get_vacation_users()
     if vacation_users == "error":

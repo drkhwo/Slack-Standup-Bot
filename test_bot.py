@@ -241,6 +241,9 @@ class TestGetMissingUsersToday(unittest.TestCase):
     def setUp(self):
         self.mock_supabase = MagicMock()
         bot_module.supabase = self.mock_supabase
+        bot_module.app = None
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+        bot_module.daily_thread_ts = None
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
     @patch('main.get_vacation_users', return_value=set())
@@ -253,6 +256,32 @@ class TestGetMissingUsersToday(unittest.TestCase):
         missing_users = bot_module.get_missing_users_today()
 
         self.assertEqual(missing_users, ["U222", "U333"])
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_excludes_users_seen_in_slack_thread_when_db_missed_event(self, mock_vacation):
+        """TC-04H-01A: Slack thread history prevents false missing pings after missed events"""
+        bot_module.app = MagicMock()
+        bot_module.daily_thread_ts = "1234567890.123456"
+
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+        bot_module.app.client.conversations_replies.return_value = {
+            "messages": [
+                {"user": "U0AGM4126DU", "bot_id": "B123", "ts": "1234567890.123456"},
+                {
+                    "user": "U222",
+                    "text": "Yesterday: shipped X\nToday: ship Y",
+                    "ts": "1234567891.000001",
+                    "thread_ts": "1234567890.123456",
+                },
+            ],
+            "has_more": False,
+        }
+
+        missing_users = bot_module.get_missing_users_today()
+
+        self.assertEqual(missing_users, ["U333"])
 
     @patch('main.get_vacation_users', return_value={"U333"})
     def test_excludes_vacation_users(self, mock_vacation):
