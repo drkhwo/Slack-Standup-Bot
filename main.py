@@ -62,6 +62,10 @@ TEAM_MAPPING = {
     "U07SR89J8NA": {"vt_user_id": "slack-9df7fc6d-ecb9-4c8d-bb8f-779e39a91a84", "name": "artiom", "email": "artiom@replika.com"},
     "U0B670M7HU6": {"vt_user_id": "", "name": "danil levinson", "email": ""},
     "U0B6RSB4M5E": {"vt_user_id": "slack-4c5703ea-8892-429c-94ff-4d1f09fb7ab3", "name": "Vladimir Lesunov", "email": "vlad@replika.com"},
+
+    # == @gtm-team ==
+    "U0B8285T563": {"vt_user_id": "", "name": "matei", "email": "matei@replika.com"},
+    "U0B8JM8QSBZ": {"vt_user_id": "", "name": "ruru", "email": "ruru@replika.com"},
     
     # == Others ==
     "U068KKKNP9R": {"vt_user_id": "slack-893f60ed-5bb0-429c-b03b-68e0eb54c35a", "name": "dmytro klochko", "email": "1@replika.com"}
@@ -312,7 +316,7 @@ def post_daily_thread():
     try:
         # Removed "12:00 sync" mention, kept just the deadline
         standup_text = (
-            f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X>\n\n"
+            f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M>\n\n"
             "*Daily — status thread* 💥\n"
             "*Please reply here before 13:00 with:*\n"
             "*Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
