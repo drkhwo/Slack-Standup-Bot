@@ -150,20 +150,20 @@ class TestPostDailyThread(unittest.TestCase):
         self.assertIn("<!subteam^S0BHNJ7J12M>", text)
 
     def test_post_daily_thread_skips_if_no_app(self):
-        """TC-03-05: post_daily_thread() must exit if app is not initialized"""
+        """TC-03-07: post_daily_thread() must exit if app is not initialized"""
         bot_module.app = None
         bot_module.post_daily_thread()
         self.assertIsNone(bot_module.daily_thread_ts)
 
     def test_post_daily_thread_skips_if_no_channel(self):
-        """TC-03-06: post_daily_thread() must exit if CHANNEL_ID is empty"""
+        """TC-03-08: post_daily_thread() must exit if CHANNEL_ID is empty"""
         bot_module.app = self.mock_app
         bot_module.CHANNEL_ID = None
         bot_module.post_daily_thread()
         self.mock_app.client.chat_postMessage.assert_not_called()
 
     def test_post_daily_thread_handles_api_error(self):
-        """TC-03-07: post_daily_thread() must handle API errors without crashing"""
+        """TC-03-09: post_daily_thread() must handle API errors without crashing"""
         self.mock_app.client.chat_postMessage.side_effect = Exception("Slack API error")
         try:
             bot_module.post_daily_thread()
