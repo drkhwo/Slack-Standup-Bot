@@ -56,8 +56,13 @@ class TestConfiguration(unittest.TestCase):
         self.assertIsInstance(bot_module.TEAM_USER_IDS, list)
         self.assertGreater(len(bot_module.TEAM_USER_IDS), 0)
 
+    def test_gtm_users_are_in_team_roster(self):
+        """TC-01-05: GTM members are included in standup report tracking"""
+        self.assertIn("U0B8285T563", bot_module.TEAM_USER_IDS)  # matei
+        self.assertIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
+
     def test_daily_thread_ts_initially_none(self):
-        """TC-01-05: daily_thread_ts is initially None"""
+        """TC-01-06: daily_thread_ts is initially None"""
         self.assertTrue(hasattr(bot_module, 'daily_thread_ts'))
 
 
@@ -136,6 +141,13 @@ class TestPostDailyThread(unittest.TestCase):
             any(text.startswith(phrase) for phrase in OPENING_PHRASES),
             f"Message text must start with one of OPENING_PHRASES"
         )
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_post_daily_thread_mentions_gtm_team(self, mock_vacation):
+        """TC-03-06: Daily standup post mentions the GTM user group"""
+        bot_module.post_daily_thread()
+        text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
+        self.assertIn("<!subteam^S0BHNJ7J12M>", text)
 
     def test_post_daily_thread_skips_if_no_app(self):
         """TC-03-05: post_daily_thread() must exit if app is not initialized"""
