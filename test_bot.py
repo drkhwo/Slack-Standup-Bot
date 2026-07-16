@@ -61,6 +61,30 @@ class TestConfiguration(unittest.TestCase):
         self.assertIn("U0B8285T563", bot_module.TEAM_USER_IDS)  # matei
         self.assertIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
 
+    def test_deactivated_users_are_excluded_from_team_roster(self):
+        """TC-01-06: Deactivated Slack users are excluded from active reporting"""
+        self.assertIn("U097GKF641M", bot_module.DEACTIVATED_USER_IDS)  # Cristian
+        self.assertNotIn("U097GKF641M", bot_module.TEAM_MAPPING)
+        self.assertNotIn("U097GKF641M", bot_module.TEAM_USER_IDS)
+
+    def test_deactivated_ids_override_stale_mapping_entries(self):
+        """TC-01-07: A stale mapping entry cannot reactivate a deactivated user"""
+        original_mapping = bot_module.TEAM_MAPPING
+        bot_module.TEAM_MAPPING = {
+            **original_mapping,
+            "U097GKF641M": {
+                "vt_user_id": "slack-cristian-id",
+                "name": "Cristian Matzov",
+                "email": "cristian@example.com",
+            },
+        }
+        try:
+            roster = bot_module._build_team_user_ids()
+        finally:
+            bot_module.TEAM_MAPPING = original_mapping
+
+        self.assertNotIn("U097GKF641M", roster)
+
     def test_daily_thread_ts_initially_none(self):
         """TC-01-06: daily_thread_ts is initially None"""
         self.assertTrue(hasattr(bot_module, 'daily_thread_ts'))
@@ -1040,6 +1064,42 @@ class TestGetVacationUsers(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertIn("U035U3KTFL5", result)  # Only Anton
+
+    @patch('main.requests.get')
+    def test_excludes_deactivated_users_from_vacation_results(self, mock_get):
+        """TC-11-09: Deactivated users are excluded even with stale identity mappings"""
+        original_mapping = bot_module.TEAM_MAPPING
+        bot_module.TEAM_MAPPING = {
+            **original_mapping,
+            "U097GKF641M": {
+                "vt_user_id": "slack-cristian-id",
+                "name": "Cristian Matzov",
+                "email": "cristian@example.com",
+            },
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "status": "ok",
+            "nextToken": None,
+            "data": [
+                {
+                    "id": "leave-cristian",
+                    "userId": "slack-cristian-id",
+                    "status": "APPROVED",
+                    "user": {"name": "Cristian Matzov"},
+                },
+            ],
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        try:
+            result = bot_module.get_vacation_users()
+        finally:
+            bot_module.TEAM_MAPPING = original_mapping
+
+        self.assertNotIn("U097GKF641M", result)
 
 
 # ---------------------------------------------------------
