@@ -122,7 +122,7 @@ Current verified suite size: `66` tests.
 ## Operational notes
 
 - Only one bot instance should run at a time.
-- `TEAM_MAPPING` is hardcoded and must be kept current when the roster changes.
+- `TEAM_MAPPING` and `DEACTIVATED_USER_IDS` are hardcoded and must be kept current when the roster changes or a Slack account is deactivated.
 - Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
 - The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Random motivational GIF or quote messages are no longer part of the production behavior.

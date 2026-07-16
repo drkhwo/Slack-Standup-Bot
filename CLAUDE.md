@@ -68,7 +68,7 @@ Tests mock all external dependencies (Slack, Supabase, APScheduler) at module lo
 
 **Deployment:** Dockerfile + `railway.toml` deploy `main.py` on Railway. See `DEPLOY.md` for setup steps.
 
-**Team membership:** `TEAM_MAPPING` in `main.py` maps Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`). `TEAM_USER_IDS` derives from it, excluding the CEO (`U068KKKNP9R`). To add/remove a team member: edit `TEAM_MAPPING` and redeploy. No other changes needed.
+**Team membership:** `TEAM_MAPPING` in `main.py` maps active Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`). `DEACTIVATED_USER_IDS` is the manual fallback for deactivated Slack accounts. `TEAM_USER_IDS` derives from the mapping, excluding the CEO (`U068KKKNP9R`) and all deactivated IDs. To add/remove a team member: edit `TEAM_MAPPING`, update `DEACTIVATED_USER_IDS` when needed, and redeploy.
 
 **Skipping reminders for a day:** Set `SKIP_TODAY=1` in Railway env vars. Important: `SKIP_TODAY=0` does NOT skip — only the value `"1"` does. Remove or set to `0` to resume normal operation.
 

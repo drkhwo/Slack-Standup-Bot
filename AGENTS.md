@@ -101,9 +101,9 @@ Required record:
 
 ## Team membership
 
-`TEAM_MAPPING` in `main.py` maps Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`).
+`TEAM_MAPPING` in `main.py` maps active Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`).
 
-`TEAM_USER_IDS` is derived from that mapping and excludes the CEO (`U068KKKNP9R`). When the team changes, update `TEAM_MAPPING` and verify that the excluded user logic is still correct.
+`DEACTIVATED_USER_IDS` is a manual fallback for Slack accounts that are no longer active but may still exist in stale roster data. `TEAM_USER_IDS` is derived from `TEAM_MAPPING`, excludes the CEO (`U068KKKNP9R`), and always excludes IDs in `DEACTIVATED_USER_IDS`. When the team changes, update `TEAM_MAPPING` and keep `DEACTIVATED_USER_IDS` current.
 
 ## Operational notes
 

@@ -34,6 +34,13 @@ LOCAL_TIMEZONE = ZoneInfo("Europe/Paris")
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
 
+# Slack users whose accounts are deactivated but whose identity records may
+# still appear in stale roster data. Keep this list in sync when accounts are
+# reactivated or deactivated.
+DEACTIVATED_USER_IDS = frozenset({
+    "U097GKF641M",  # Cristian Matzov
+})
+
 # Mapping: Slack User ID -> Vacation Tracker user identity.
 # Vacation Tracker user IDs are the primary matching key; email/name are fallbacks.
 TEAM_MAPPING = {
@@ -43,7 +50,6 @@ TEAM_MAPPING = {
     "U06A6MV64R2": {"vt_user_id": "slack-cd6e696b-b46c-4016-a83b-6f33bdec289d", "name": "andrei", "email": "a.vorsin@replika.ai"},
     "U035U3KTFL5": {"vt_user_id": "slack-e8a42dfa-6dc0-421a-ae5d-977b46ec1cdb", "name": "Anton Tyutin", "email": "tapoton@replika.ai"},
     "U08MW9K5K0U": {"vt_user_id": "slack-2623664f-e3be-4960-b80a-8b6f6a3c3efb", "name": "Ban Markovic", "email": "ban@replika.com"},
-    "U097GKF641M": {"vt_user_id": "slack-8db64651-178b-4af9-92c0-69d1d58e979d", "name": "Cristian Matzov", "email": "cristian.matazov.pturtle@replika.com"},
     "U085J8B5TJ6": {"vt_user_id": "slack-c847534e-34c8-49eb-b711-5a7df4efa0bd", "name": "eddy", "email": "ed@replika.ai"},
     "U097GKK3UUX": {"vt_user_id": "slack-aa408a12-092c-44c2-83dc-1937934862d2", "name": "Georgi Todorov", "email": "georgi.todorov.pturtle@replika.com"},
     "U011Q8J1PDK": {"vt_user_id": "slack-9c1dd668-ff38-4e5f-b055-094d54eb4178", "name": "Georgii Andrianov", "email": "g.andrianov@replika.ai"},
@@ -71,8 +77,17 @@ TEAM_MAPPING = {
     "U068KKKNP9R": {"vt_user_id": "slack-893f60ed-5bb0-429c-b03b-68e0eb54c35a", "name": "dmytro klochko", "email": "1@replika.com"}
 }
 
-# Collect all user IDs for report tracking, excluding CEO (@dk - U068KKKNP9R)
-TEAM_USER_IDS = [uid for uid in TEAM_MAPPING.keys() if uid != "U068KKKNP9R"]
+def _build_team_user_ids():
+    """Build the active standup roster from the identity map and exclusions."""
+    return [
+        uid
+        for uid in TEAM_MAPPING
+        if uid != "U068KKKNP9R" and uid not in DEACTIVATED_USER_IDS
+    ]
+
+
+# Collect active user IDs for report tracking, excluding CEO and deactivated users.
+TEAM_USER_IDS = _build_team_user_ids()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -121,7 +136,8 @@ def _build_vacation_tracker_lookup():
     email_to_uid = {}
     name_to_uid = {}
 
-    for uid, identity in TEAM_MAPPING.items():
+    for uid in _build_team_user_ids():
+        identity = TEAM_MAPPING[uid]
         if isinstance(identity, str):
             vt_user_id = ""
             name = identity
