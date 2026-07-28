@@ -63,27 +63,42 @@ class TestConfiguration(unittest.TestCase):
 
     def test_deactivated_users_are_excluded_from_team_roster(self):
         """TC-01-06: Deactivated Slack users are excluded from active reporting"""
-        self.assertIn("U097GKF641M", bot_module.DEACTIVATED_USER_IDS)  # Cristian
-        self.assertNotIn("U097GKF641M", bot_module.TEAM_MAPPING)
-        self.assertNotIn("U097GKF641M", bot_module.TEAM_USER_IDS)
+        deactivated_user_ids = {
+            "U097GKF641M",  # Cristian
+            "U08MW9K5K0U",  # Ban
+            "U097GKK3UUX",  # Georgi Todorov
+        }
+        self.assertTrue(deactivated_user_ids.issubset(bot_module.DEACTIVATED_USER_IDS))
+        self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_MAPPING))
+        self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_USER_IDS))
 
     def test_deactivated_ids_override_stale_mapping_entries(self):
         """TC-01-07: A stale mapping entry cannot reactivate a deactivated user"""
         original_mapping = bot_module.TEAM_MAPPING
-        bot_module.TEAM_MAPPING = {
-            **original_mapping,
+        stale_entries = {
             "U097GKF641M": {
                 "vt_user_id": "slack-cristian-id",
                 "name": "Cristian Matzov",
                 "email": "cristian@example.com",
             },
+            "U08MW9K5K0U": {
+                "vt_user_id": "slack-ban-id",
+                "name": "Ban Markovic",
+                "email": "ban@example.com",
+            },
+            "U097GKK3UUX": {
+                "vt_user_id": "slack-georgi-id",
+                "name": "Georgi Todorov",
+                "email": "georgi@example.com",
+            },
         }
+        bot_module.TEAM_MAPPING = {**original_mapping, **stale_entries}
         try:
             roster = bot_module._build_team_user_ids()
         finally:
             bot_module.TEAM_MAPPING = original_mapping
 
-        self.assertNotIn("U097GKF641M", roster)
+        self.assertTrue(set(stale_entries).isdisjoint(roster))
 
     def test_daily_thread_ts_initially_none(self):
         """TC-01-06: daily_thread_ts is initially None"""
