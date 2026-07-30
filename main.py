@@ -55,6 +55,7 @@ TEAM_MAPPING = {
     "U011Q8J1PDK": {"vt_user_id": "slack-9c1dd668-ff38-4e5f-b055-094d54eb4178", "name": "Georgii Andrianov", "email": "g.andrianov@replika.ai"},
     "U09QE0E0HHQ": {"vt_user_id": "slack-986ddb5f-8fca-4fba-bb75-94c26a22afb7", "name": "Giorgio", "email": "giorgio@replika.com"},
     "U088WHYP2P6": {"vt_user_id": "slack-b505762e-5d73-4584-8652-3c2489289924", "name": "Gvantsa Nebadze", "email": "gvantsa@replika.com"},
+    "U09RAPHVDPG": {"vt_user_id": "", "name": "Gena", "email": "henadz@replika.com"},
     "U0965UA3XQ8": {"vt_user_id": "slack-8878392a-0160-4ed5-859b-b38e2b76aeb8", "name": "maksim", "email": "maksim@replika.com"},
     "U08EFQCMJ3U": {"vt_user_id": "slack-720b8eaa-3d39-4bcd-9d96-57081203ab2d", "name": "Paweł", "email": "pawel@replika.com"},
     "U09T69U1Y5V": {"vt_user_id": "slack-490cfbb6-3da5-4cc2-8210-0e862d68521f", "name": "Sebastian", "email": "sebastian@replika.com"},
