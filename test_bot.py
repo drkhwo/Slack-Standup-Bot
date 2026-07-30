@@ -61,8 +61,13 @@ class TestConfiguration(unittest.TestCase):
         self.assertIn("U0B8285T563", bot_module.TEAM_USER_IDS)  # matei
         self.assertIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
 
+    def test_gena_is_in_team_roster(self):
+        """TC-01-06: Gena is included in standup report tracking"""
+        self.assertIn("U09RAPHVDPG", bot_module.TEAM_USER_IDS)
+        self.assertEqual(bot_module.TEAM_MAPPING["U09RAPHVDPG"]["email"], "henadz@replika.com")
+
     def test_deactivated_users_are_excluded_from_team_roster(self):
-        """TC-01-06: Deactivated Slack users are excluded from active reporting"""
+        """TC-01-07: Deactivated Slack users are excluded from active reporting"""
         deactivated_user_ids = {
             "U097GKF641M",  # Cristian
             "U08MW9K5K0U",  # Ban
@@ -73,7 +78,7 @@ class TestConfiguration(unittest.TestCase):
         self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_USER_IDS))
 
     def test_deactivated_ids_override_stale_mapping_entries(self):
-        """TC-01-07: A stale mapping entry cannot reactivate a deactivated user"""
+        """TC-01-08: A stale mapping entry cannot reactivate a deactivated user"""
         original_mapping = bot_module.TEAM_MAPPING
         stale_entries = {
             "U097GKF641M": {
