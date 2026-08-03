@@ -72,7 +72,7 @@ TEAM_MAPPING = {
 
     # == @gtm-team ==
     "U0B8285T563": {"vt_user_id": "", "name": "matei", "email": "matei@replika.com"},
-    "U0B8JM8QSBZ": {"vt_user_id": "", "name": "ruru", "email": "ruru@replika.com"},
+    "U0BMCE4HM7D": {"vt_user_id": "", "name": "Arman", "email": "arman@replika.com"},
     
     # == Others ==
     "U068KKKNP9R": {"vt_user_id": "slack-893f60ed-5bb0-429c-b03b-68e0eb54c35a", "name": "dmytro klochko", "email": "1@replika.com"}

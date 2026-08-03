@@ -59,7 +59,8 @@ class TestConfiguration(unittest.TestCase):
     def test_gtm_users_are_in_team_roster(self):
         """TC-01-05: GTM members are included in standup report tracking"""
         self.assertIn("U0B8285T563", bot_module.TEAM_USER_IDS)  # matei
-        self.assertIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
+        self.assertIn("U0BMCE4HM7D", bot_module.TEAM_USER_IDS)  # Arman
+        self.assertNotIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
 
     def test_gena_is_in_team_roster(self):
         """TC-01-06: Gena is included in standup report tracking"""
