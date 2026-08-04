@@ -103,7 +103,7 @@ REACTION_ALIASES = (
     "together-4",
     "enough-for-today",
     "stop-nerding",
-    "ship",
+    "ship-smth",
     "mvp",
     "mvp-2",
     "together-3",
@@ -111,6 +111,8 @@ REACTION_ALIASES = (
     "pink-monke",
     "monkey-zen",
     "omg-monkey",
+    "matrix-code",
+    "matrix-monitors",
 )
 
 MEDIA_MANIFEST_PATH = Path(__file__).resolve().parent / "assets" / "monkey-business" / "manifest.json"

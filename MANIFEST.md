@@ -40,7 +40,7 @@ Slack Socket Mode events
 - Ignores bot-authored messages
 - Inserts a new `standup_reports` row for the first reply of the day
 - Appends later replies from the same user to the existing `raw_text`
-- Adds one random approved reaction from the 15-alias set only after the database write succeeds
+- Adds one random approved reaction from the 17-alias set only after the database write succeeds
 
 ### Missing report reminders
 
@@ -129,7 +129,7 @@ Current verified suite size: `105` tests.
 - Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
 - The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Reminder and escalation media are selected from the checked-in manifest and uploaded directly to Slack.
-- The approved confirmation reactions are `flow-state`, `monkey-business`, `investigating`, `tired-monke`, `together-4`, `enough-for-today`, `stop-nerding`, `ship`, `mvp`, `mvp-2`, `together-3`, `together-5`, `pink-monke`, `monkey-zen`, and `omg-monkey`.
+- The approved confirmation reactions are `flow-state`, `monkey-business`, `investigating`, `tired-monke`, `together-4`, `enough-for-today`, `stop-nerding`, `ship-smth`, `mvp`, `mvp-2`, `together-3`, `together-5`, `pink-monke`, `monkey-zen`, `omg-monkey`, `matrix-code`, and `matrix-monitors`.
 - Only the 12 aliases in `assets/monkey-business/manifest.json` are eligible for reminder and escalation media uploads.
 - End-of-day escalation stays in the standup thread and does not write to `ALERT_CHANNEL_ID`.
 

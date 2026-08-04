@@ -47,7 +47,7 @@ to the available emoji concepts; the aliases in parentheses are internal and are
 
 21. *(tired-monke)* `Low battery, high signal. Drop the useful version.`
 22. *(investigating)* `Case file open: what shipped, what is next, what is stuck?`
-23. *(ship)* `Ship check: what moved, what is next, what is stuck?`
+23. *(ship-smth)* `Ship check: what moved, what is next, what is stuck?`
 24. *(flow-state)* `Flow state starts with a clean status.`
 25. *(monkey-business)* `Monkey business, minus the mystery.`
 26. *(enough-for-today)* `Need a quick win? Start with the status.`
@@ -242,7 +242,7 @@ Reaction aliases remain separate from message copy. The approved random-reaction
 - `together-4`
 - `enough-for-today`
 - `stop-nerding`
-- `ship`
+- `ship-smth`
 - `mvp`
 - `mvp-2`
 - `together-3`
@@ -250,6 +250,8 @@ Reaction aliases remain separate from message copy. The approved random-reaction
 - `pink-monke`
 - `monkey-zen`
 - `omg-monkey`
+- `matrix-code`
+- `matrix-monitors`
 
 No other reaction alias is included in this proposal.
 

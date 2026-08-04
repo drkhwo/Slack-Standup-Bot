@@ -73,13 +73,13 @@ After deployment, verify the following:
 2. The bot connects to Slack Socket Mode without authentication errors
 3. The scheduler runs in `Europe/Paris` local time
 4. The next scheduled standup thread appears in the configured channel at `09:04 Europe/Paris`
-5. A saved reply receives one of the 15 approved reactions
+5. A saved reply receives one of the 17 approved reactions
 6. The bot posts the missing-report reminder at `12:30 Europe/Paris` and closes the thread at `13:01 Europe/Paris`
 7. If someone is still missing at `21:00 Europe/Paris`, the bot posts the final escalation in the same thread and tags `@dk`
 
 Before exercising reminder or escalation media, verify that the installed bot token has the `files:write` scope. The bot uploads local GIF/PNG assets from `assets/monkey-business/` with the copy in `initial_comment`; upload failures fall back to a text-only thread reply.
 
-The three reaction-only aliases (`pink-monke`, `monkey-zen`, and `omg-monkey`) are not upload candidates because they are not present in the media manifest.
+The five reaction-only aliases (`pink-monke`, `monkey-zen`, `omg-monkey`, `matrix-code`, and `matrix-monitors`) are not upload candidates because they are not present in the media manifest.
 
 ## Troubleshooting
 
