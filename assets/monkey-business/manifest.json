@@ -1,0 +1,74 @@
+{
+  "flow-state": {
+    "path": "assets/monkey-business/flow-state.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "monkey-business": {
+    "path": "assets/monkey-business/monkey-business.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "investigating": {
+    "path": "assets/monkey-business/investigating.png",
+    "media_type": "image/png",
+    "source_type": "png",
+    "conversion": "preserved as PNG"
+  },
+  "tired-monke": {
+    "path": "assets/monkey-business/tired-monke.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "together-4": {
+    "path": "assets/monkey-business/together-4.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "enough-for-today": {
+    "path": "assets/monkey-business/enough-for-today.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "stop-nerding": {
+    "path": "assets/monkey-business/stop-nerding.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "ship": {
+    "path": "assets/monkey-business/ship.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "mvp": {
+    "path": "assets/monkey-business/mvp.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "mvp-2": {
+    "path": "assets/monkey-business/mvp-2.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  },
+  "together-3": {
+    "path": "assets/monkey-business/together-3.png",
+    "media_type": "image/png",
+    "source_type": "png",
+    "conversion": "preserved as PNG"
+  },
+  "together-5": {
+    "path": "assets/monkey-business/together-5.gif",
+    "media_type": "image/gif",
+    "source_type": "mp4",
+    "conversion": "converted to optimized GIF"
+  }
+}

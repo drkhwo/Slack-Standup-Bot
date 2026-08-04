@@ -1,8 +1,10 @@
 import os
+import json
 import logging
 import re
 from datetime import date, timedelta
 import random
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # Third-party imports
@@ -93,28 +95,76 @@ TEAM_USER_IDS = _build_team_user_ids()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-REMINDER_MEMES = [
-    "Regional Management has noticed a missing standup update. Yesterday, today, blockers. Before 13:00. 🏢\nhttps://media.giphy.com/media/ghuvaCOI6GOoTX0RmH/giphy.gif",
-    "Corporate needs one status update from you. This is, somehow, urgent and ceremonial. 📎\nhttps://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif",
-    "The conference room has concerns. Please reply with yesterday, today, blockers. 🗂️\nhttps://media.giphy.com/media/YJfHgYS8UWiJYONfwZ/giphy.gif",
-    "This standup thread is missing one attachment: your update. Regional Manager is escalating emotionally. 🧾\nhttps://media.giphy.com/media/2oUfvvUgQHnLsQWFMW/giphy.gif",
-    "Please make the thread proud: status, ETA, blockers. The office morale budget depends on it. 🏆\nhttps://media.giphy.com/media/HJB9Nq9RMZgZlLssZF/giphy.gif",
-    "Standup compliance party starts after your reply. Yesterday, today, blockers. 🎉\nhttps://media.giphy.com/media/l0amJzVHIAfl7jMDos/giphy.gif",
-]
+REACTION_ALIASES = (
+    "flow-state",
+    "monkey-business",
+    "investigating",
+    "tired-monke",
+    "together-4",
+    "enough-for-today",
+    "stop-nerding",
+    "ship",
+    "mvp",
+    "mvp-2",
+    "together-3",
+    "together-5",
+    "pink-monke",
+    "monkey-zen",
+    "omg-monkey",
+)
 
-END_OF_DAY_GIFS = [
-    "https://media.giphy.com/media/ghuvaCOI6GOoTX0RmH/giphy.gif",
-    "https://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif",
-    "https://media.giphy.com/media/2oUfvvUgQHnLsQWFMW/giphy.gif",
-]
+MEDIA_MANIFEST_PATH = Path(__file__).resolve().parent / "assets" / "monkey-business" / "manifest.json"
+with MEDIA_MANIFEST_PATH.open(encoding="utf-8") as manifest_file:
+    MEDIA_MANIFEST = json.load(manifest_file)
+MEDIA_ALIASES = tuple(MEDIA_MANIFEST)
 
-THREAD_CLOSED_MESSAGES = [
-    "This thread is officially *CLOSED* for today.\nLate updates go to tomorrow's meeting agenda. Regional Management thanks you. 💙📋",
-    "End of day checkpoint: this standup thread is now *CLOSED*.\nTomorrow gets a fresh thread and another chance to impress the branch. 💙🏢",
-    "Thread closed. Please do not add tomorrow's update here.\nChronology is fragile, and so is middle management. 💙🗂️",
-    "That's a wrap for today's standup thread.\nIf your update missed the train, tomorrow's thread has a very serious clipboard waiting. 💙🚂",
-    "Standup thread closed for the day.\nNo new updates here after this point; the paper trail deserves dignity. 💙📎",
-]
+REMINDER_MESSAGES = (
+    "Hey {MENTIONS} — your standup update is still missing. Reply in this thread with Yesterday, Today, and Blockers/Risks before 13:00.",
+    "Hey {MENTIONS} — quick nudge: the thread is still waiting on Yesterday, Today, and Blockers/Risks. Please post before 13:00.",
+    "Hey {MENTIONS} — no update from you yet. Add Yesterday, Today, and Blockers/Risks here before 13:00.",
+    "Hey {MENTIONS} — the thread is missing your update. Keep it brief: Yesterday, Today, Blockers/Risks. Deadline: 13:00.",
+    "Hey {MENTIONS} — make the status visible. Reply here with Yesterday, Today, and Blockers/Risks before 13:00. 🐒",
+    "Hey {MENTIONS} — support your local monkey business and drop your update here before 13:00: Yesterday, Today, and Blockers/Risks.",
+)
+
+THREAD_CLOSED_MESSAGE = "DDL passed. Thread closed."
+
+
+def _get_media_path(alias):
+    """Resolve an approved media alias through the checked-in manifest."""
+    if alias not in MEDIA_ALIASES:
+        raise ValueError(f"Unsupported media alias: {alias}")
+
+    entry = MEDIA_MANIFEST[alias]
+    media_path = Path(__file__).resolve().parent / entry["path"]
+    if media_path.suffix.lower() not in {".gif", ".png"}:
+        raise ValueError(f"Unsupported runtime media type: {media_path}")
+    if not media_path.is_file():
+        raise FileNotFoundError(f"Media asset does not exist: {media_path}")
+    return media_path
+
+
+def _upload_thread_media_or_text(text, media_alias):
+    """Upload local thread media, falling back to the same thread as text."""
+    try:
+        app.client.files_upload_v2(
+            channel=CHANNEL_ID,
+            thread_ts=daily_thread_ts,
+            file=str(_get_media_path(media_alias)),
+            initial_comment=text,
+        )
+        return True
+    except Exception as upload_error:
+        logger.warning(f"Could not upload thread media; using text fallback: {upload_error}")
+        try:
+            app.client.chat_postMessage(
+                channel=CHANNEL_ID,
+                thread_ts=daily_thread_ts,
+                text=text,
+            )
+        except Exception as fallback_error:
+            logger.error(f"Could not post text fallback: {fallback_error}")
+        return False
 
 def get_supabase_client():
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -331,16 +381,15 @@ def post_daily_thread():
     phrase = get_opening_phrase()
     
     try:
-        # Removed "12:00 sync" mention, kept just the deadline
         standup_text = (
-            f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M>\n\n"
-            "*Daily — status thread* 💥\n"
-            "*Please reply here before 13:00 with:*\n"
-            "*Yesterday:* what shipped / merged. Make sure you quote your last reply and update it with statuses.\n"
-            "*Today (by EOD or days remaining):* what you'll complete / how many days left\n"
-            "*Blockers / Risks:* who/what is needed to unblock\n"
-            "*Status-only here; move discussion to subthreads*\n"
-            "*If you can't finish something today, state the time remaining*\n\n"
+            f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M> 🍌\n\n"
+            "*Daily status thread*\n"
+            "*Reply in the active thread before 13:00 with:*\n"
+            "*Yesterday:* what shipped or merged. If this continues yesterday's work, quote your previous update and add the current status.\n"
+            "*Today:* what you will complete today and, if relevant, how many days remain.\n"
+            "*Blockers / Risks:* who or what you need to unblock you.\n"
+            "*Keep status in this thread; move discussions to subthreads.*\n"
+            "*If something will not be finished today, state the remaining time.*\n\n"
             "cc: <@U068KKKNP9R>"
         )
         
@@ -353,7 +402,7 @@ def post_daily_thread():
 
         # Alert to monitoring channel
         thread_link = f"https://slack.com/archives/{CHANNEL_ID}/p{daily_thread_ts.replace('.', '')}"
-        send_alert(f"📋 Regional Management posted today's standup thread → <{thread_link}|open thread>")
+        send_alert(f"Today's standup thread is live: <{thread_link}|open the active thread>")
         
         # Save thread timestamp to database
         if supabase:
@@ -369,20 +418,20 @@ def post_daily_thread():
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="⚠️ _Vacation Tracker left the conference room. Vacation status is unknown._"
+                text="⚠️ _Vacation Tracker is unavailable, so today's leave status is unknown. Monkey Business continues, but we will not guess who is out._"
             )
         elif vacations:
             mentions = ", ".join([f"<@{uid}>" for uid in vacations])
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text=f"🌴 *Out today, officially excused by Regional Management:* {mentions}\n_Enjoy the PTO. The branch will survive somehow._"
+                text=f"🌴 *Out today — confirmed by Vacation Tracker:* {mentions}\nEnjoy the PTO. We'll keep the status thread moving."
             )
         else:
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="🏢 *Full office today:* Vacation Tracker says nobody is out. The room is full; expectations are higher."
+                text="*Full team today:* Vacation Tracker reports no absences. Let's keep the status moving."
             )
             
     except Exception as e:
@@ -402,21 +451,15 @@ def check_missing_reports():
         if missing_users is None:
             return
         
-        # 4. Send reminder with a meme
         if missing_users:
-            meme = random.choice(REMINDER_MEMES)
             mentions = " ".join([f"<@{uid}>" for uid in missing_users])
-            
-            app.client.chat_postMessage(
-                channel=CHANNEL_ID,
-                thread_ts=daily_thread_ts,
-                text=f"Hey {mentions}! {meme}"
-            )
+            message = random.choice(REMINDER_MESSAGES).replace("{MENTIONS}", mentions)
+            _upload_thread_media_or_text(message, random.choice(MEDIA_ALIASES))
             logger.info(f"Reminded missing users: {missing_users}")
-            send_alert(f"🧯 Regional Management reminded {len(missing_users)} missing standup reporter(s)")
+            send_alert(f"Standup reminder sent to {len(missing_users)} missing reporter(s).")
         else:
             logger.info("All active users have reported. No reminders needed!")
-            send_alert("🏆 All standups are in. Regional Management is pretending this was never in doubt.")
+            send_alert("All standup reports are in. The status thread is complete.")
             
     except Exception as e:
         logger.error(f"Error checking missing reports: {e}")
@@ -432,7 +475,7 @@ def post_thread_closed():
         return
 
     try:
-        message = random.choice(THREAD_CLOSED_MESSAGES)
+        message = THREAD_CLOSED_MESSAGE
         app.client.chat_postMessage(
             channel=CHANNEL_ID,
             thread_ts=daily_thread_ts,
@@ -458,17 +501,12 @@ def post_end_of_day_escalation():
             return
 
         mentions = " ".join([f"<@{uid}>" for uid in missing_users])
-        sad_gif = random.choice(END_OF_DAY_GIFS)
         text = (
-            f"End-of-day branch review: still no update from {mentions}. "
-            f"<@U068KKKNP9R>, this case has reached the Regional Manager desk.\n{sad_gif}"
+            f"End-of-day check: {mentions} still have no update in the active thread. "
+            f"<@U068KKKNP9R>, please take a look."
         )
 
-        app.client.chat_postMessage(
-            channel=CHANNEL_ID,
-            thread_ts=daily_thread_ts,
-            text=text
-        )
+        _upload_thread_media_or_text(text, random.choice(MEDIA_ALIASES))
         logger.info(f"End-of-day escalation sent for missing users: {missing_users}")
     except Exception as e:
         logger.error(f"Error posting end-of-day escalation: {e}")
@@ -520,17 +558,23 @@ def send_personal_standup_reminder():
         today_section = _extract_today_section(raw_text)
 
         if today_section:
-            body = f"*Yesterday you planned for today:*\n>{today_section}"
+            text = (
+                "Quick nudge: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
+                f"*Yesterday's plan for Today:*\n>{today_section}"
+            )
         else:
-            body = f"_Could not parse your yesterday's plan — here's the full post:_\n>{raw_text[:300]}"
+            text = (
+                "Quick nudge: your standup update is still missing. I couldn't isolate yesterday's Today section, so here's the full previous post. "
+                "Please reply in today's active thread before 13:00.\n\n"
+                f"*Full previous post:*\n>{raw_text[:300]}"
+            )
 
-        thread_link = ""
         if daily_thread_ts:
-            thread_link = f"\n\n<https://slack.com/archives/{CHANNEL_ID}/p{daily_thread_ts.replace('.', '')}|Open today's standup thread> — deadline is *13:00* 🕐"
+            text += f"\n\n<https://slack.com/archives/{CHANNEL_ID}/p{daily_thread_ts.replace('.', '')}|Open today's active standup thread> — deadline is *13:00*"
 
         app.client.chat_postMessage(
             channel=PERSONAL_REMINDER_USER_ID,
-            text=f"👋 Regional Management noticed your standup is not in yet. Please post before 13:00.\n\n{body}{thread_link}"
+            text=text,
         )
         logger.info(f"Personal standup reminder sent to {PERSONAL_REMINDER_USER_ID}")
 
@@ -584,10 +628,10 @@ def register_events(app_instance):
                     supabase.table("standup_reports").insert(data).execute()
                     logger.info(f"Inserted new report for {user_id}")
                 
-                # Add checkmark reaction to the message
+                reaction_name = random.choice(REACTION_ALIASES)
                 app_instance.client.reactions_add(
                     channel=CHANNEL_ID,
-                    name="blue_heart",
+                    name=reaction_name,
                     timestamp=ts
                 )
 
@@ -602,8 +646,8 @@ def send_deploy_notification():
     if os.environ.get("DEPLOY_NOTIFY") != "1":
         return
     send_alert(
-        "🚀 Regional Manager is back online.\n"
-        "Current logic version: *Standup collection mode*."
+        "🚀 Standup bot is back online.\n"
+        "Mode: *Standup collection*."
     )
     logger.info("Deploy notification sent.")
 
@@ -626,7 +670,7 @@ def main():
     scheduler.add_job(post_daily_thread, 'cron', day_of_week='mon-fri', hour=9, minute=4)
     scheduler.add_job(send_personal_standup_reminder, 'cron', day_of_week='mon-fri', hour=9, minute=15)
     scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=12, minute=30)
-    scheduler.add_job(post_thread_closed, 'cron', day_of_week='mon-fri', hour=18, minute=0)
+    scheduler.add_job(post_thread_closed, 'cron', day_of_week='mon-fri', hour=13, minute=1)
     scheduler.add_job(post_end_of_day_escalation, 'cron', day_of_week='mon-fri', hour=21, minute=0)
     
     scheduler.start()

@@ -51,8 +51,8 @@ Tests mock Slack, Supabase, APScheduler, and dotenv imports at module load time.
 1. `main()` initializes the Slack Bolt app, Supabase client, background scheduler, and message event handler.
 2. `post_daily_thread()` posts the daily standup message to `CHANNEL_ID`, stores the returned Slack timestamp in the in-memory `daily_thread_ts` variable, and persists it into the `bot_state` table.
 3. `post_daily_thread()` immediately posts a vacation status reply in the same thread based on `get_vacation_users()`.
-4. `handle_message_events()` listens for replies in the active daily thread, ignores bot messages, writes or updates the user's report in `standup_reports`, and adds a `blue_heart` reaction after a successful database write.
-5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and posts daytime reminders for anyone still missing.
+4. `handle_message_events()` listens for replies in the active daily thread, ignores bot messages, writes or updates the user's report in `standup_reports`, and adds one random approved reaction from the 15-alias set after a successful database write.
+5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and uploads one of the 12 manifest-backed local Monkey Business assets with the daytime reminder for anyone still missing.
 6. `post_end_of_day_escalation()` posts a final same-thread escalation at `21:00 Europe/Paris` if anyone is still missing, tagging only `@dk`.
 
 ### Scheduler configuration
@@ -61,9 +61,14 @@ Current jobs are configured directly in `main.py`:
 
 - Timezone: `Europe/Paris`
 - Daily standup thread: weekdays at `09:04`
-- First reminder: weekdays at `11:30`
-- Second reminder: weekdays at `17:00`
+- Personal reminder DM: weekdays at `09:15`
+- Missing-report reminder: weekdays at `12:30`
+- Thread-closed message: weekdays at `13:01`
 - End-of-day escalation: weekdays at `21:00`
+
+The bot uses `files_upload_v2` with the `files:write` Slack bot scope for reminder and escalation media. If an upload fails, it posts the same copy as a text-only reply in the active thread.
+
+Reaction-only aliases are separate from media aliases: `pink-monke`, `monkey-zen`, and `omg-monkey` can confirm saved reports but are not media-upload candidates because they have no manifest files.
 
 These values come from APScheduler cron jobs in code and should be treated as the source of truth.
 
