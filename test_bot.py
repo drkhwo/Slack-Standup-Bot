@@ -441,7 +441,7 @@ class TestHandleMessageEvents(unittest.TestCase):
                 }}
                 self._call_handler(body)
 
-        self.assertEqual(mock_choice.call_count, 15)
+        self.assertEqual(mock_choice.call_count, 17)
         selected = [reaction_call.kwargs['name'] for reaction_call in self.mock_app.client.reactions_add.call_args_list]
         self.assertEqual(selected, list(bot_module.REACTION_ALIASES))
 
