@@ -554,12 +554,17 @@ class TestPhrases(unittest.TestCase):
         self.assertEqual(len(bot_module.REACTION_ALIASES), 17)
 
     def test_media_aliases_are_manifest_backed_and_exclude_reaction_only_aliases(self):
-        """TC-06-05: Media selection uses only the 12 existing manifest assets"""
+        """TC-06-05: Media selection uses the 12 manifest assets with valid aliases"""
         manifest = json.loads(Path(bot_module.MEDIA_MANIFEST_PATH).read_text())
         self.assertEqual(set(bot_module.MEDIA_ALIASES), set(manifest))
         self.assertEqual(len(bot_module.MEDIA_ALIASES), 12)
+        self.assertIn("ship-smth", bot_module.MEDIA_ALIASES)
+        self.assertNotIn("ship", bot_module.MEDIA_ALIASES)
         self.assertTrue(
-            {"pink-monke", "monkey-zen", "omg-monkey"}.isdisjoint(bot_module.MEDIA_ALIASES)
+            {
+                "pink-monke", "monkey-zen", "omg-monkey",
+                "matrix-code", "matrix-monitors",
+            }.isdisjoint(bot_module.MEDIA_ALIASES)
         )
 
     def test_opening_phrases_match_revised_copy(self):
