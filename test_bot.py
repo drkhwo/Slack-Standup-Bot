@@ -543,15 +543,15 @@ class TestPhrases(unittest.TestCase):
             self.assertTrue(len(phrase.strip()) > 0)
 
     def test_reaction_aliases_match_approved_manifest_aliases(self):
-        """TC-06-04: Reaction aliases are exactly the approved 15 aliases"""
+        """TC-06-04: Reaction aliases are exactly the approved 17 aliases"""
         expected = {
             "flow-state", "monkey-business", "investigating", "tired-monke",
-            "together-4", "enough-for-today", "stop-nerding", "ship",
+            "together-4", "enough-for-today", "stop-nerding", "ship-smth",
             "mvp", "mvp-2", "together-3", "together-5", "pink-monke",
-            "monkey-zen", "omg-monkey",
+            "monkey-zen", "omg-monkey", "matrix-code", "matrix-monitors",
         }
         self.assertEqual(set(bot_module.REACTION_ALIASES), expected)
-        self.assertEqual(len(bot_module.REACTION_ALIASES), 15)
+        self.assertEqual(len(bot_module.REACTION_ALIASES), 17)
 
     def test_media_aliases_are_manifest_backed_and_exclude_reaction_only_aliases(self):
         """TC-06-05: Media selection uses only the 12 existing manifest assets"""
