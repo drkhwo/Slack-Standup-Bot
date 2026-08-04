@@ -120,7 +120,7 @@ Run:
 python -m pytest test_bot.py -v
 ```
 
-Current verified suite size: `104` tests.
+Current verified suite size: `105` tests.
 
 ## Operational notes
 
