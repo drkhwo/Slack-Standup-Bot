@@ -47,7 +47,7 @@ python -m pytest test_bot.py -v
 If the Railway service is connected to the GitHub repository:
 
 ```bash
-git add main.py phrases.py test_bot.py AGENTS.md MANIFEST.md DEPLOY.md
+git add .dockerignore Dockerfile main.py phrases.py test_bot.py AGENTS.md CLAUDE.md MANIFEST.md DEPLOY.md COPY_PROPOSAL_REVISED.md SLACK_APP_PROFILE_CHECK.md assets/monkey-business
 git commit -m "Add end-of-day missing report escalation"
 git push origin main
 ```
@@ -73,9 +73,13 @@ After deployment, verify the following:
 2. The bot connects to Slack Socket Mode without authentication errors
 3. The scheduler runs in `Europe/Paris` local time
 4. The next scheduled standup thread appears in the configured channel at `09:04 Europe/Paris`
-5. A reply in the thread is saved and receives a `blue_heart` reaction
-6. The bot posts reminders at `11:30` and `17:00 Europe/Paris`
+5. A saved reply receives one of the 15 approved reactions
+6. The bot posts the missing-report reminder at `12:30 Europe/Paris` and closes the thread at `13:01 Europe/Paris`
 7. If someone is still missing at `21:00 Europe/Paris`, the bot posts the final escalation in the same thread and tags `@dk`
+
+Before exercising reminder or escalation media, verify that the installed bot token has the `files:write` scope. The bot uploads local GIF/PNG assets from `assets/monkey-business/` with the copy in `initial_comment`; upload failures fall back to a text-only thread reply.
+
+The three reaction-only aliases (`pink-monke`, `monkey-zen`, and `omg-monkey`) are not upload candidates because they are not present in the media manifest.
 
 ## Troubleshooting
 

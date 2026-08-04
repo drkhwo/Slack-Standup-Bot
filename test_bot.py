@@ -5,11 +5,13 @@ or: python test_bot.py
 """
 
 import os
+import json
 import re
 import sys
 import unittest
 from unittest.mock import MagicMock, patch, call
 from datetime import date
+from pathlib import Path
 
 # Mock external dependencies before importing main
 sys.modules['slack_bolt'] = MagicMock()
@@ -206,6 +208,7 @@ class TestPostDailyThread(unittest.TestCase):
         bot_module.CHANNEL_ID = None
         bot_module.post_daily_thread()
         self.mock_app.client.chat_postMessage.assert_not_called()
+        self.mock_app.client.files_upload_v2.assert_not_called()
 
     def test_post_daily_thread_handles_api_error(self):
         """TC-03-09: post_daily_thread() must handle API errors without crashing"""
@@ -263,12 +266,13 @@ class TestCheckMissingReports(unittest.TestCase):
 
         bot_module.check_missing_reports()
 
-        # Should send reminder (U222 hasn't reported)
-        self.mock_app.client.chat_postMessage.assert_called_once()
-        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
-        self.assertIn("U222", call_kwargs['text'])
+        # Should upload the reminder for U222 into the active thread.
+        self.mock_app.client.files_upload_v2.assert_called_once()
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertIn("U222", call_kwargs['initial_comment'])
         self.assertEqual(call_kwargs['channel'], 'C08UT7VP2TA')
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
+        self.mock_app.client.chat_postMessage.assert_not_called()
 
     @patch('main.get_vacation_users', return_value=set())
     def test_no_ping_if_all_reported(self, mock_vacation):
@@ -279,6 +283,7 @@ class TestCheckMissingReports(unittest.TestCase):
 
         bot_module.check_missing_reports()
         self.mock_app.client.chat_postMessage.assert_not_called()
+        self.mock_app.client.files_upload_v2.assert_not_called()
 
     @patch('main.get_vacation_users', return_value=set())
     def test_pings_all_if_none_reported(self, mock_vacation):
@@ -288,10 +293,11 @@ class TestCheckMissingReports(unittest.TestCase):
         self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
 
         bot_module.check_missing_reports()
-        self.mock_app.client.chat_postMessage.assert_called_once()
-        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
-        self.assertIn("U111", call_kwargs['text'])
-        self.assertIn("U222", call_kwargs['text'])
+        self.mock_app.client.files_upload_v2.assert_called_once()
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertIn("U111", call_kwargs['initial_comment'])
+        self.assertIn("U222", call_kwargs['initial_comment'])
+        self.mock_app.client.chat_postMessage.assert_not_called()
 
 
 class TestGetMissingUsersToday(unittest.TestCase):
@@ -406,8 +412,9 @@ class TestHandleMessageEvents(unittest.TestCase):
         self.assertEqual(insert_data['raw_text'], "Yesterday did X, today will do Y")
         self.assertEqual(insert_data['date'], date.today().isoformat())
 
-    def test_adds_checkmark_reaction(self):
-        """TC-05-02: Checkmark reaction is added after saving"""
+    @patch('main.random.choice', return_value='flow-state')
+    def test_adds_random_approved_reaction_after_saving(self, mock_choice):
+        """TC-05-02: An approved random reaction is added after saving"""
         body = {"event": {
             "user": "U999",
             "text": "My report",
@@ -415,11 +422,28 @@ class TestHandleMessageEvents(unittest.TestCase):
             "thread_ts": "1234567890.123456",
         }}
         self._call_handler(body)
+        mock_choice.assert_called_once_with(bot_module.REACTION_ALIASES)
         self.mock_app.client.reactions_add.assert_called_once_with(
             channel='C08UT7VP2TA',
-            name="blue_heart",
+            name="flow-state",
             timestamp="9999999999.000001"
         )
+
+    def test_random_reaction_selection_covers_all_approved_aliases(self):
+        """TC-05-02A: Every approved alias can be selected for a saved report"""
+        with patch('main.random.choice', side_effect=bot_module.REACTION_ALIASES) as mock_choice:
+            for index, alias in enumerate(bot_module.REACTION_ALIASES):
+                body = {"event": {
+                    "user": "U999",
+                    "text": f"Report {index}",
+                    "ts": f"9999999999.000{index:03d}",
+                    "thread_ts": "1234567890.123456",
+                }}
+                self._call_handler(body)
+
+        self.assertEqual(mock_choice.call_count, 15)
+        selected = [reaction_call.kwargs['name'] for reaction_call in self.mock_app.client.reactions_add.call_args_list]
+        self.assertEqual(selected, list(bot_module.REACTION_ALIASES))
 
     def test_ignores_messages_outside_thread(self):
         """TC-05-03: Messages outside the thread are ignored"""
@@ -470,6 +494,18 @@ class TestHandleMessageEvents(unittest.TestCase):
         except Exception:
             self.fail("handle_message_events must not raise exceptions")
 
+    def test_no_reaction_after_report_write_failure(self):
+        """TC-05-07A: A failed report write is never confirmed with a reaction"""
+        self.mock_supabase.table.return_value.insert.return_value.execute.side_effect = Exception("DB error")
+        body = {"event": {
+            "user": "U999",
+            "text": "My report",
+            "ts": "9999999999.000001",
+            "thread_ts": "1234567890.123456",
+        }}
+        self._call_handler(body)
+        self.mock_app.client.reactions_add.assert_not_called()
+
     def test_report_includes_thread_ts(self):
         """TC-05-07: Saved report contains the message thread_ts"""
         body = {"event": {
@@ -506,6 +542,85 @@ class TestPhrases(unittest.TestCase):
         for phrase in OPENING_PHRASES:
             self.assertTrue(len(phrase.strip()) > 0)
 
+    def test_reaction_aliases_match_approved_manifest_aliases(self):
+        """TC-06-04: Reaction aliases are exactly the approved 15 aliases"""
+        expected = {
+            "flow-state", "monkey-business", "investigating", "tired-monke",
+            "together-4", "enough-for-today", "stop-nerding", "ship",
+            "mvp", "mvp-2", "together-3", "together-5", "pink-monke",
+            "monkey-zen", "omg-monkey",
+        }
+        self.assertEqual(set(bot_module.REACTION_ALIASES), expected)
+        self.assertEqual(len(bot_module.REACTION_ALIASES), 15)
+
+    def test_media_aliases_are_manifest_backed_and_exclude_reaction_only_aliases(self):
+        """TC-06-05: Media selection uses only the 12 existing manifest assets"""
+        manifest = json.loads(Path(bot_module.MEDIA_MANIFEST_PATH).read_text())
+        self.assertEqual(set(bot_module.MEDIA_ALIASES), set(manifest))
+        self.assertEqual(len(bot_module.MEDIA_ALIASES), 12)
+        self.assertTrue(
+            {"pink-monke", "monkey-zen", "omg-monkey"}.isdisjoint(bot_module.MEDIA_ALIASES)
+        )
+
+    def test_opening_phrases_match_revised_copy(self):
+        """TC-06-06: Opening phrases use the exact revised cool Slackbot copy"""
+        from phrases import OPENING_PHRASES
+
+        expected = [
+            "Morning. Standup is open — keep it short, useful, and on the record.",
+            "New day, same thread. What shipped, what is next, and what is in the way?",
+            "Status window open. Facts first; side quests in subthreads.",
+            "Standup is live. Drop the signal, skip the director's cut.",
+            "Quick status check: done, next, blocked.",
+            "The thread is live. Bring updates, not suspense.",
+            "Morning sync starts here. If the plan changed, write it down.",
+            "Standup is open. Keep it sharp and actionable.",
+            "What shipped? What's next? What needs a hand?",
+            "Daily status thread is live. Give us the useful version.",
+            "No mystery, just status: yesterday, today, blockers.",
+            "Status check-in is open. Concise is a feature.",
+            "Thread unlocked. ETA changes and blockers belong here.",
+            "Keep it factual, keep it moving, keep the blockers visible.",
+            "13:00 is the deadline. The thread is the source of truth.",
+            "One thread, three questions: yesterday, today, blockers.",
+            "Standup is live. Keep the status here; move the debate to subthreads.",
+            "Drop the update while it is still fresh.",
+            "Monkey see, monkey do: make the status visible. 🐒",
+            "Support your local monkey business: post the update before 13:00. 🐒",
+            "Low battery, high signal. Drop the useful version.",
+            "Case file open: what shipped, what is next, what is stuck?",
+            "Ship check: what moved, what is next, what is stuck?",
+            "Flow state starts with a clean status.",
+            "Monkey business, minus the mystery.",
+            "Need a quick win? Start with the status.",
+        ]
+        self.assertEqual(OPENING_PHRASES, expected)
+
+    def test_reminder_and_thread_closed_copy_match_revised_proposal(self):
+        """TC-06-07: Reminder and thread-closed copy uses exact revised strings"""
+        self.assertEqual(bot_module.REMINDER_MESSAGES, (
+            "Hey {MENTIONS} — your standup update is still missing. Reply in this thread with Yesterday, Today, and Blockers/Risks before 13:00.",
+            "Hey {MENTIONS} — quick nudge: the thread is still waiting on Yesterday, Today, and Blockers/Risks. Please post before 13:00.",
+            "Hey {MENTIONS} — no update from you yet. Add Yesterday, Today, and Blockers/Risks here before 13:00.",
+            "Hey {MENTIONS} — the thread is missing your update. Keep it brief: Yesterday, Today, Blockers/Risks. Deadline: 13:00.",
+            "Hey {MENTIONS} — make the status visible. Reply here with Yesterday, Today, and Blockers/Risks before 13:00. 🐒",
+            "Hey {MENTIONS} — support your local monkey business and drop your update here before 13:00: Yesterday, Today, and Blockers/Risks.",
+        ))
+        self.assertEqual(bot_module.THREAD_CLOSED_MESSAGE, "DDL passed. Thread closed.")
+        self.assertNotIn("tomorrow", bot_module.THREAD_CLOSED_MESSAGE.casefold())
+
+    def test_refreshed_copy_avoids_repeated_or_corporate_wording(self):
+        """TC-06-08: Runtime copy keeps the joke layer light and avoids stale wording."""
+        source = "\n".join(
+            (
+                Path(bot_module.__file__).read_text(encoding="utf-8"),
+                (Path(bot_module.__file__).parent / "phrases.py").read_text(encoding="utf-8"),
+            )
+        )
+        self.assertNotIn("paper trail", source.casefold())
+        self.assertNotIn("chaos organized", source.casefold())
+        self.assertEqual(source.count("🐒"), 3)
+
 
 # ---------------------------------------------------------
 # TC-07: post_daily_thread — extended checks
@@ -535,6 +650,69 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         first_call_kwargs = self.mock_app.client.chat_postMessage.call_args_list[0][1]
         self.assertIn("Daily", first_call_kwargs['text'])
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_standup_text_uses_exact_monkey_business_contract(self, mock_vacation):
+        """TC-07-02A: Daily instructions and mentions use the approved copy"""
+        bot_module.post_daily_thread()
+        text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
+        self.assertIn("*Daily status thread*", text)
+        self.assertIn("*Reply in the active thread before 13:00 with:*", text)
+        self.assertIn("*Yesterday:* what shipped or merged. If this continues yesterday's work, quote your previous update and add the current status.", text)
+        self.assertIn("*Today:* what you will complete today and, if relevant, how many days remain.", text)
+        self.assertIn("*Blockers / Risks:* who or what you need to unblock you.", text)
+        self.assertIn("*Keep status in this thread; move discussions to subthreads.*", text)
+        self.assertIn("*If something will not be finished today, state the remaining time.*", text)
+        self.assertIn("<!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M>", text)
+        self.assertIn("cc: <@U068KKKNP9R>", text)
+
+    @patch('main.get_opening_phrase', return_value="Status window open. Facts first; side quests in subthreads.")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_standup_intro_has_one_fixed_banana_after_team_mentions(self, mock_vacation, mock_opening):
+        """TC-07-02F: The opening post contains one predictable banana marker."""
+        bot_module.post_daily_thread()
+        text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
+        self.assertEqual(text.count("🍌"), 1)
+        self.assertIn(
+            "<!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M> 🍌",
+            text,
+        )
+
+    @patch('main.get_vacation_users', return_value="error")
+    def test_vacation_unavailable_uses_revised_copy(self, mock_vacation):
+        """TC-07-02B: Vacation Tracker failure uses the approved status copy"""
+        bot_module.post_daily_thread()
+        self.assertEqual(
+            self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
+            "⚠️ _Vacation Tracker is unavailable, so today's leave status is unknown. Monkey Business continues, but we will not guess who is out._",
+        )
+
+    @patch('main.get_vacation_users', return_value={"U111"})
+    def test_vacation_users_use_revised_copy(self, mock_vacation):
+        """TC-07-02C: Vacation mentions use the approved status copy"""
+        bot_module.post_daily_thread()
+        self.assertEqual(
+            self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
+            "🌴 *Out today — confirmed by Vacation Tracker:* <@U111>\nEnjoy the PTO. We'll keep the status thread moving.",
+        )
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_no_vacation_users_use_revised_copy(self, mock_vacation):
+        """TC-07-02D: Full-team vacation status uses the approved copy"""
+        bot_module.post_daily_thread()
+        self.assertEqual(
+            self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
+            "*Full team today:* Vacation Tracker reports no absences. Let's keep the status moving.",
+        )
+
+    @patch('main.send_alert')
+    @patch('main.get_vacation_users', return_value=set())
+    def test_daily_thread_alert_uses_revised_copy(self, mock_vacation, mock_alert):
+        """TC-07-02E: Daily-thread alert uses the approved copy"""
+        bot_module.post_daily_thread()
+        mock_alert.assert_called_once_with(
+            "Today's standup thread is live: <https://slack.com/archives/C08UT7VP2TA/p1234567890123456|open the active thread>"
+        )
 
     @patch('main.get_vacation_users', return_value=set())
     def test_post_daily_thread_persists_state_to_supabase(self, mock_vacation):
@@ -577,19 +755,19 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         bot_module.CHANNEL_ID = 'C08UT7VP2TA'
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
+    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "flow-state"])
     @patch('main.get_vacation_users', return_value=set())
-    def test_reminder_message_contains_emoji(self, mock_vacation):
-        """TC-08-01: Reminder contains an emoji"""
+    def test_reminder_message_is_concise_and_actionable(self, mock_vacation, mock_choice):
+        """TC-08-01: Reminder is concise, actionable, and deadline-aware"""
         mock_response = MagicMock()
         mock_response.data = []
         self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
         bot_module.check_missing_reports()
-        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
-        # Check that at least one emoji is present (any meme has one)
-        import re
-        emoji_pattern = re.compile(r'[\u2600-\u27BF\U0001F300-\U0001F9FF]')
-        self.assertTrue(emoji_pattern.search(call_kwargs['text']),
-                        "Reminder message should contain an emoji")
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        reminder_text = call_kwargs['initial_comment']
+        self.assertIn("Yesterday, Today, and Blockers/Risks", reminder_text)
+        self.assertIn("before 13:00", reminder_text)
+        self.assertNotIn("paper trail", reminder_text.casefold())
 
     @patch('main.get_vacation_users', return_value=set())
     def test_reminder_sent_in_thread(self, mock_vacation):
@@ -598,8 +776,50 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         mock_response.data = []
         self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
         bot_module.check_missing_reports()
-        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.mock_app.client.files_upload_v2.assert_called_once()
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertEqual(call_kwargs['channel'], 'C08UT7VP2TA')
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
+        reminder_text = call_kwargs['initial_comment']
+        self.assertIn("Yesterday, Today", reminder_text)
+        self.assertIn("Blockers/Risks", reminder_text)
+
+    @patch('main.send_alert')
+    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "flow-state"])
+    @patch('main.get_vacation_users', return_value=set())
+    def test_reminder_uses_separate_media_alias_selection(self, mock_vacation, mock_choice, mock_alert):
+        """TC-08-02A: Reminder media selection is separate from reaction-only aliases"""
+        mock_response = MagicMock()
+        mock_response.data = []
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        bot_module.check_missing_reports()
+
+        mock_choice.assert_has_calls([
+            call(bot_module.REMINDER_MESSAGES),
+            call(bot_module.MEDIA_ALIASES),
+        ])
+        self.mock_app.client.files_upload_v2.assert_called_once()
+        self.assertEqual(
+            mock_alert.call_args.args[0],
+            "Standup reminder sent to 3 missing reporter(s).",
+        )
+
+    @patch('main.send_alert')
+    @patch('main.get_vacation_users', return_value=set())
+    def test_all_reports_alert_uses_revised_copy(self, mock_vacation, mock_alert):
+        """TC-08-02B: All-reports alert uses the approved copy"""
+        mock_response = MagicMock()
+        mock_response.data = [
+            {"user_id": "U111"},
+            {"user_id": "U222"},
+            {"user_id": "U333"},
+        ]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        bot_module.check_missing_reports()
+
+        mock_alert.assert_called_once_with("All standup reports are in. The status thread is complete.")
 
     def test_handles_supabase_error_gracefully(self):
         """TC-08-03: Supabase error in check_missing_reports does not crash"""
@@ -623,32 +843,51 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
 
 class TestNotificationAssets(unittest.TestCase):
 
-    OFFICE_GIPHY_IDS = {
-        "ghuvaCOI6GOoTX0RmH",
-        "mNqKJi7UyK5CAO1YyM",
-        "YJfHgYS8UWiJYONfwZ",
-        "2oUfvvUgQHnLsQWFMW",
-        "HJB9Nq9RMZgZlLssZF",
-        "l0amJzVHIAfl7jMDos",
-    }
+    ROOT = Path(__file__).resolve().parent
 
-    def _extract_giphy_ids(self, messages):
-        ids = []
-        for message in messages:
-            match = re.search(r"https://media\.giphy\.com/media/([^/]+)/giphy\.gif", message)
-            self.assertIsNotNone(match, f"Missing GIPHY URL in message: {message}")
-            ids.append(match.group(1))
-        return ids
+    def test_all_manifest_assets_exist_and_have_no_runtime_mp4(self):
+        """TC-08-05: Every manifest asset exists and runtime paths are GIF/PNG only."""
+        manifest_path = self.ROOT / "assets" / "monkey-business" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        self.assertEqual(set(manifest), set(bot_module.MEDIA_ALIASES))
+        for entry in manifest.values():
+            asset_path = self.ROOT / entry['path']
+            self.assertTrue(asset_path.is_file(), asset_path)
+            self.assertNotEqual(asset_path.suffix.lower(), ".mp4")
+            self.assertIn(entry['media_type'], {"image/gif", "image/png"})
 
-    def test_reminder_gifs_use_regional_manager_theme(self):
-        """TC-08-05: Reminder GIFs stay in the Regional Manager theme."""
-        gif_ids = self._extract_giphy_ids(bot_module.REMINDER_MEMES)
-        self.assertTrue(set(gif_ids).issubset(self.OFFICE_GIPHY_IDS))
+    def test_giphy_and_old_reaction_behavior_are_removed(self):
+        """TC-08-06: Production runtime contains no Giphy or blue-heart flow."""
+        source = (self.ROOT / "main.py").read_text().lower()
+        self.assertNotIn("giphy", source)
+        self.assertNotIn("blue_heart", source)
+        self.assertNotIn("reminder_memes", source)
+        self.assertNotIn("end_of_day_gifs", source)
 
-    def test_end_of_day_gifs_use_regional_manager_theme(self):
-        """TC-08E-05: Escalation GIFs stay in the Regional Manager theme."""
-        gif_ids = self._extract_giphy_ids(bot_module.END_OF_DAY_GIFS)
-        self.assertTrue(set(gif_ids).issubset(self.OFFICE_GIPHY_IDS))
+    def test_docker_image_copies_runtime_assets(self):
+        """TC-08-07: The Docker image includes the local media directory."""
+        dockerfile = (self.ROOT / "Dockerfile").read_text()
+        self.assertIn("COPY assets/monkey-business ./assets/monkey-business", dockerfile)
+
+    def test_docker_context_keeps_media_manifest(self):
+        """TC-08-08: The Docker context does not exclude the runtime manifest."""
+        dockerignore = (self.ROOT / ".dockerignore").read_text()
+        self.assertIn("!assets/monkey-business/manifest.json", dockerignore)
+
+    def test_rejected_identity_and_banana_copy_are_absent_from_project_files(self):
+        """TC-08-09: Rejected identity and banana copy are absent from project-facing files."""
+        project_files = (
+            "main.py",
+            "phrases.py",
+            "AGENTS.md",
+            "CLAUDE.md",
+            "DEPLOY.md",
+            "MANIFEST.md",
+        )
+        source = "\n".join((self.ROOT / path).read_text() for path in project_files).lower()
+        self.assertNotIn("gnik gnok", source)
+        self.assertNotIn("monkey scott", source)
+        self.assertNotIn("banana", source)
 
 
 class TestEndOfDayEscalation(unittest.TestCase):
@@ -662,7 +901,7 @@ class TestEndOfDayEscalation(unittest.TestCase):
         bot_module.CHANNEL_ID = 'C08UT7VP2TA'
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
-    @patch('main.random.choice', return_value="https://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif")
+    @patch('main.random.choice', return_value="mvp")
     @patch('main.get_vacation_users', return_value=set())
     def test_posts_when_users_are_missing(self, mock_vacation, mock_choice):
         """TC-08E-01: End-of-day escalation posts when users are still missing"""
@@ -672,13 +911,36 @@ class TestEndOfDayEscalation(unittest.TestCase):
 
         bot_module.post_end_of_day_escalation()
 
-        self.mock_app.client.chat_postMessage.assert_called_once()
-        call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.mock_app.client.files_upload_v2.assert_called_once()
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'C08UT7VP2TA')
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
-        self.assertIn("End-of-day branch review: still no update from <@U222> <@U333>.", call_kwargs['text'])
-        self.assertIn("<@U068KKKNP9R>, this case has reached the Regional Manager desk.", call_kwargs['text'])
-        self.assertIn("https://media.giphy.com/media/mNqKJi7UyK5CAO1YyM/giphy.gif", call_kwargs['text'])
+        self.assertEqual(call_kwargs['file'], str(Path(bot_module.__file__).parent / "assets/monkey-business/mvp.gif"))
+        self.assertEqual(
+            call_kwargs['initial_comment'],
+            "End-of-day check: <@U222> <@U333> still have no update in the active thread. "
+            "<@U068KKKNP9R>, please take a look.",
+        )
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_upload_failure_falls_back_to_text_only_thread_message(self, mock_vacation, mock_choice):
+        """TC-08E-01A: Escalation upload failure preserves text in the same thread."""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+        self.mock_app.client.files_upload_v2.side_effect = Exception("files:write unavailable")
+
+        bot_module.post_end_of_day_escalation()
+
+        self.mock_app.client.chat_postMessage.assert_called_once_with(
+            channel='C08UT7VP2TA',
+            thread_ts="1234567890.123456",
+            text=(
+                "End-of-day check: <@U222> <@U333> still have no update in the active thread. "
+                "<@U068KKKNP9R>, please take a look."
+            ),
+        )
 
     @patch('main.get_vacation_users', return_value=set())
     def test_does_nothing_when_no_one_is_missing(self, mock_vacation):
@@ -690,6 +952,7 @@ class TestEndOfDayEscalation(unittest.TestCase):
         bot_module.post_end_of_day_escalation()
 
         self.mock_app.client.chat_postMessage.assert_not_called()
+        self.mock_app.client.files_upload_v2.assert_not_called()
 
     def test_does_nothing_without_daily_thread(self):
         """TC-08E-03: End-of-day escalation skips without daily thread"""
@@ -836,7 +1099,8 @@ class TestMainFunction(unittest.TestCase):
         self.assertEqual(add_job_calls[2][1]['hour'], 12)
         self.assertEqual(add_job_calls[2][1]['minute'], 30)
         self.assertEqual(add_job_calls[3][0][0], bot_module.post_thread_closed)
-        self.assertEqual(add_job_calls[3][1]['hour'], 18)
+        self.assertEqual(add_job_calls[3][1]['hour'], 13)
+        self.assertEqual(add_job_calls[3][1]['minute'], 1)
         self.assertEqual(add_job_calls[4][0][0], bot_module.post_end_of_day_escalation)
         self.assertEqual(add_job_calls[4][1]['hour'], 21)
         mock_sched.start.assert_called_once()
@@ -1140,6 +1404,10 @@ class TestSendDeployNotification(unittest.TestCase):
         self.mock_app.client.chat_postMessage.assert_called_once()
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'C_ALERT')
+        self.assertEqual(
+            call_kwargs['text'],
+            "🚀 Standup bot is back online.\nMode: *Standup collection*.",
+        )
 
     def test_skips_when_deploy_notify_not_set(self):
         """TC-13-02: send_deploy_notification() does nothing without DEPLOY_NOTIFY=1"""
@@ -1209,12 +1477,13 @@ class TestThreadBoostsRemoved(unittest.TestCase):
         self._call_handler(self._standup_body())
         self.mock_app.client.chat_postMessage.assert_not_called()
 
-    def test_thread_reply_still_gets_confirmation_reaction(self):
+    @patch('main.random.choice', return_value='flow-state')
+    def test_thread_reply_still_gets_confirmation_reaction(self, mock_choice):
         """TC-12-02: Standup replies still get the confirmation reaction"""
         self._call_handler(self._standup_body())
         self.mock_app.client.reactions_add.assert_called_once_with(
             channel='C08UT7VP2TA',
-            name="blue_heart",
+            name="flow-state",
             timestamp="9999999999.000001"
         )
 
@@ -1285,6 +1554,10 @@ class TestPersonalStandupReminder(unittest.TestCase):
         self.mock_app.client.chat_postMessage.assert_called_once()
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'U0821BRMJ4R')
+        self.assertTrue(call_kwargs['text'].startswith(
+            "Quick nudge: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
+        ))
+        self.assertIn("*Yesterday's plan for Today:*", call_kwargs['text'])
         self.assertIn('ship feature Y', call_kwargs['text'])
 
     def test_sends_dm_with_full_post_when_no_today_section(self):
@@ -1293,6 +1566,10 @@ class TestPersonalStandupReminder(unittest.TestCase):
         bot_module.send_personal_standup_reminder()
         self.mock_app.client.chat_postMessage.assert_called_once()
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
+        self.assertIn(
+            "Quick nudge: your standup update is still missing. I couldn't isolate yesterday's Today section, so here's the full previous post.",
+            call_kwargs['text'],
+        )
         self.assertIn('unstructured update', call_kwargs['text'])
 
     def test_dm_includes_thread_link_when_available(self):

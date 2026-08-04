@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir \
 
 # Copy application code
 COPY main.py phrases.py ./
+COPY assets/monkey-business ./assets/monkey-business
 
 # Run the bot
 CMD ["python", "main.py"]

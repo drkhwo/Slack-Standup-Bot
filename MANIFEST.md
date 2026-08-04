@@ -40,14 +40,15 @@ Slack Socket Mode events
 - Ignores bot-authored messages
 - Inserts a new `standup_reports` row for the first reply of the day
 - Appends later replies from the same user to the existing `raw_text`
-- Adds a `blue_heart` reaction only after the database write succeeds
+- Adds one random approved reaction from the 15-alias set only after the database write succeeds
 
 ### Missing report reminders
 
 - Loads today's reports from Supabase
 - Loads approved absences from Vacation Tracker
 - Excludes users on leave from reminder targeting
-- Posts a reminder in the existing standup thread for anyone still missing
+- Uploads one of the 12 manifest-backed local Monkey Business GIF/PNG files with the reminder in the existing standup thread for anyone still missing
+- Falls back to a text-only thread reply if the Slack file upload fails
 
 ### End-of-day escalation
 
@@ -55,7 +56,8 @@ Slack Socket Mode events
 - Reuses the same missing-user calculation as the daytime reminders
 - Posts in the existing standup thread only when users are still missing
 - Tags only `@dk`
-- Includes a dramatic sad GIF for visibility
+- Uploads one of the 12 manifest-backed local Monkey Business GIF/PNG files for visibility
+- Falls back to a text-only escalation if the Slack file upload fails
 
 ### Scheduling
 
@@ -64,8 +66,9 @@ Configured in `main.py`:
 Timezone: `Europe/Paris`
 
 - Weekdays at `09:04` — post daily thread
-- Weekdays at `11:30` — first reminder
-- Weekdays at `17:00` — second reminder
+- Weekdays at `09:15` — personal standup reminder DM
+- Weekdays at `12:30` — missing-report reminder
+- Weekdays at `13:01` — close the active standup thread
 - Weekdays at `21:00` — final missing-report escalation
 
 ## Database
@@ -117,7 +120,7 @@ Run:
 python -m pytest test_bot.py -v
 ```
 
-Current verified suite size: `66` tests.
+Current verified suite size: `105` tests.
 
 ## Operational notes
 
@@ -125,7 +128,9 @@ Current verified suite size: `66` tests.
 - `TEAM_MAPPING` and `DEACTIVATED_USER_IDS` are hardcoded and must be kept current when the roster changes or a Slack account is deactivated.
 - Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
 - The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
-- Random motivational GIF or quote messages are no longer part of the production behavior.
+- Reminder and escalation media are selected from the checked-in manifest and uploaded directly to Slack.
+- The approved confirmation reactions are `flow-state`, `monkey-business`, `investigating`, `tired-monke`, `together-4`, `enough-for-today`, `stop-nerding`, `ship`, `mvp`, `mvp-2`, `together-3`, `together-5`, `pink-monke`, `monkey-zen`, and `omg-monkey`.
+- Only the 12 aliases in `assets/monkey-business/manifest.json` are eligible for reminder and escalation media uploads.
 - End-of-day escalation stays in the standup thread and does not write to `ALERT_CHANNEL_ID`.
 
 ## Known limitations
