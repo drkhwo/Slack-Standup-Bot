@@ -69,7 +69,18 @@ Tests mock all external dependencies (Slack, Supabase, APScheduler) at module lo
 
 **Deployment:** Dockerfile + `railway.toml` deploy `main.py` on Railway. See `DEPLOY.md` for setup steps.
 
-**Team membership:** `TEAM_MAPPING` in `main.py` maps active Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`). `DEACTIVATED_USER_IDS` is the manual fallback for deactivated Slack accounts. `TEAM_USER_IDS` derives from the mapping, excluding the CEO (`U068KKKNP9R`) and all deactivated IDs. To add/remove a team member: edit `TEAM_MAPPING`, update `DEACTIVATED_USER_IDS` when needed, and redeploy.
+**Team membership:** `TEAM_MAPPING` in `main.py` maps active Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`). `DEACTIVATED_USER_IDS` is the manual fallback for deactivated Slack accounts. `TEAM_USER_IDS` derives from the mapping, excluding the CEO (`U068KKKNP9R`) and all deactivated IDs.
+
+To add someone: add them to `TEAM_MAPPING` and redeploy.
+
+To remove someone who has left, do all three steps — the first two are deliberately redundant, so a stale entry restored to `TEAM_MAPPING` by mistake still cannot put them back on the roster:
+1. Delete their record from `TEAM_MAPPING`.
+2. Add their Slack ID to `DEACTIVATED_USER_IDS` with their name as a trailing comment.
+3. Add the ID to the `deactivated_user_ids` set in TC-01-07 (`test_bot.py`).
+
+Then redeploy — until the deploy lands, the running instance keeps the old roster and still pings them.
+
+Someone temporarily away (on leave) stays in `TEAM_MAPPING` untouched — Vacation Tracker excludes them at runtime.
 
 **Skipping reminders for a day:** Set `SKIP_TODAY=1` in Railway env vars. Important: `SKIP_TODAY=0` does NOT skip — only the value `"1"` does. Remove or set to `0` to resume normal operation.
 

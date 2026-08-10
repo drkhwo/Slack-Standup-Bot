@@ -110,6 +110,18 @@ Required record:
 
 `DEACTIVATED_USER_IDS` is a manual fallback for Slack accounts that are no longer active but may still exist in stale roster data. `TEAM_USER_IDS` is derived from `TEAM_MAPPING`, excludes the CEO (`U068KKKNP9R`), and always excludes IDs in `DEACTIVATED_USER_IDS`. When the team changes, update `TEAM_MAPPING` and keep `DEACTIVATED_USER_IDS` current.
 
+### Removing someone who has left
+
+Do all three steps — the first two are deliberately redundant, so that a stale entry restored to `TEAM_MAPPING` by mistake still cannot put the person back on the roster:
+
+1. Delete their record from `TEAM_MAPPING`.
+2. Add their Slack ID to `DEACTIVATED_USER_IDS`, with their name as a trailing comment.
+3. Add the ID to the `deactivated_user_ids` set in TC-01-07 (`test_bot.py`), which asserts the ID is in `DEACTIVATED_USER_IDS` and absent from both `TEAM_MAPPING` and `TEAM_USER_IDS`.
+
+Then redeploy. Until the deploy lands, the running instance keeps the old roster and will still ping them.
+
+Someone who is merely away — on leave or otherwise temporarily absent — stays in `TEAM_MAPPING` untouched; Vacation Tracker handles that case at runtime.
+
 ## Operational notes
 
 - The bot relies on a single active process. Running multiple instances can create duplicate daily threads and duplicate reminders.
