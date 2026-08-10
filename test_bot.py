@@ -75,6 +75,7 @@ class TestConfiguration(unittest.TestCase):
             "U097GKF641M",  # Cristian
             "U08MW9K5K0U",  # Ban
             "U097GKK3UUX",  # Georgi Todorov
+            "U09T69U1Y5V",  # Sebastian
         }
         self.assertTrue(deactivated_user_ids.issubset(bot_module.DEACTIVATED_USER_IDS))
         self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_MAPPING))
