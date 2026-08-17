@@ -62,6 +62,7 @@ class TestConfiguration(unittest.TestCase):
         """TC-01-05: GTM members are included in standup report tracking"""
         self.assertIn("U0BMCE4HM7D", bot_module.TEAM_USER_IDS)  # Arman
         self.assertIn("U0BQ926P1B4", bot_module.TEAM_USER_IDS)  # Vadym Netrebko
+        self.assertIn("U0BMHG7445V", bot_module.TEAM_USER_IDS)  # Natalia Shevchenko
         self.assertNotIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
 
     def test_gena_is_in_team_roster(self):

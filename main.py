@@ -67,6 +67,7 @@ TEAM_MAPPING = {
     "U0821BRMJ4R": {"vt_user_id": "slack-876c64e7-4bae-496c-a5b8-2bdfbc192440", "name": "Stan Khvo", "email": "stas@replika.ai"},
     "U098DPA85PY": {"vt_user_id": "slack-3d7c669c-4433-4bad-8a85-76c86e71caa6", "name": "Wojciech Klarowski", "email": "wojciech@replika.com"},
     "U09MF4SB7C2": {"vt_user_id": "slack-f6986bc1-2c20-46ba-b9a1-dcef0329346c", "name": "John Deda", "email": "johndeda@replika.com"},
+    "U0BA8CNJJ1F": {"vt_user_id": "", "name": "Kirill Solovei", "email": "kirill@replika.com"},
     
     # == @brand-team ==
     "U07SR89J8NA": {"vt_user_id": "slack-9df7fc6d-ecb9-4c8d-bb8f-779e39a91a84", "name": "artiom", "email": "artiom@replika.com"},
@@ -76,6 +77,7 @@ TEAM_MAPPING = {
     # == @gtm-team ==
     "U0BMCE4HM7D": {"vt_user_id": "", "name": "Arman", "email": "arman@replika.com"},
     "U0BQ926P1B4": {"vt_user_id": "", "name": "Vadym Netrebko", "email": "vadym@replika.com"},
+    "U0BMHG7445V": {"vt_user_id": "", "name": "Natalia Shevchenko", "email": "natalia@replika.com"},
     
     # == Others ==
     "U068KKKNP9R": {"vt_user_id": "slack-893f60ed-5bb0-429c-b03b-68e0eb54c35a", "name": "dmytro klochko", "email": "1@replika.com"}
