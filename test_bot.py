@@ -60,8 +60,9 @@ class TestConfiguration(unittest.TestCase):
 
     def test_gtm_users_are_in_team_roster(self):
         """TC-01-05: GTM members are included in standup report tracking"""
-        self.assertIn("U0B8285T563", bot_module.TEAM_USER_IDS)  # matei
         self.assertIn("U0BMCE4HM7D", bot_module.TEAM_USER_IDS)  # Arman
+        self.assertIn("U0BQ926P1B4", bot_module.TEAM_USER_IDS)  # Vadym Netrebko
+        self.assertIn("U0BMHG7445V", bot_module.TEAM_USER_IDS)  # Natalia Shevchenko
         self.assertNotIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
 
     def test_gena_is_in_team_roster(self):
@@ -76,6 +77,8 @@ class TestConfiguration(unittest.TestCase):
             "U08MW9K5K0U",  # Ban
             "U097GKK3UUX",  # Georgi Todorov
             "U09T69U1Y5V",  # Sebastian
+            "U088WHYP2P6",  # Gvantsa
+            "U0B8285T563",  # matei
         }
         self.assertTrue(deactivated_user_ids.issubset(bot_module.DEACTIVATED_USER_IDS))
         self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_MAPPING))
@@ -1155,7 +1158,7 @@ class TestGetVacationUsers(unittest.TestCase):
                     "status": "APPROVED",
                     "startDate": "2026-02-26",
                     "endDate": "2026-02-28",
-                    "user": {"name": "Gvantsa Nebadze"},
+                    "user": {"name": "Sergei Mironov"},
                 },
             ],
         }
@@ -1165,7 +1168,7 @@ class TestGetVacationUsers(unittest.TestCase):
         result = bot_module.get_vacation_users()
 
         self.assertIn("U035U3KTFL5", result)  # Anton Tyutin
-        self.assertIn("U088WHYP2P6", result)  # Gvantsa Nebadze
+        self.assertIn("U04SBH53P9C", result)  # Sergei Mironov
         self.assertEqual(len(result), 2)
 
     @patch('main.requests.get')
@@ -1185,7 +1188,7 @@ class TestGetVacationUsers(unittest.TestCase):
                 {
                     "id": "leave-2",
                     "status": "PENDING",
-                    "user": {"name": "Gvantsa Nebadze"},
+                    "user": {"name": "Sergei Mironov"},
                 },
                 {
                     "id": "leave-3",
@@ -1200,7 +1203,7 @@ class TestGetVacationUsers(unittest.TestCase):
         result = bot_module.get_vacation_users()
 
         self.assertIn("U035U3KTFL5", result)  # Anton — APPROVED
-        self.assertNotIn("U088WHYP2P6", result)  # Gvantsa — PENDING
+        self.assertNotIn("U04SBH53P9C", result)  # Sergei — PENDING
         self.assertNotIn("U085J8B5TJ6", result)  # Ed — DENIED
         self.assertEqual(len(result), 1)
 
