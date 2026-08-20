@@ -65,7 +65,7 @@ Tests mock all external dependencies (Slack, Supabase, APScheduler) at module lo
 | 18:01 | `post_weekly_thread_closed()`   | Closes the weekly thread                               |
 | 18:30 | `post_weekly_escalation()`      | Escalation to CEO if anyone is still missing           |
 
-On Friday the daily jobs at 09:15, 12:30 and 21:00 return early — the daily thread stays open but nobody is pinged for it twice. The 13:01 close message gains a line saying the weekly thread is open until 18:00.
+While the weekly thread is live, the daily jobs at 09:15, 12:30 and 21:00 return early — the daily thread stays open but nobody is pinged for it twice — and the 13:01 close message gains a line saying the weekly thread is open until 18:00. All of that is gated on today's weekly thread having actually posted (`_weekly_thread_is_today()`), not on the calendar: if the 09:06 post fails, Friday falls back to the normal daily reminders and an alert goes to `ALERT_CHANNEL_ID`.
 
 **Key data flows:**
 1. `post_daily_thread()` posts the standup prompt to `CHANNEL_ID`, saves the returned thread `ts` to `daily_thread_ts` global and the `bot_state` Supabase table so it survives restarts.

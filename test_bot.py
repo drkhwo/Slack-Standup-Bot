@@ -1915,12 +1915,11 @@ class TestWeeklyUpdates(unittest.TestCase):
             "<@U068KKKNP9R>, please take a look.",
         )
 
-    # --- Friday makes the daily thread optional -----------------------------
+    # --- the daily thread is optional only while the weekly one is live ------
 
-    @patch('main._is_friday', return_value=True)
     @patch('main.get_vacation_users', return_value=set())
-    def test_friday_skips_daily_reminder_and_escalation(self, mock_vacation, mock_friday):
-        """TC-12-19: Nobody gets pinged twice on Friday"""
+    def test_live_weekly_thread_makes_the_daily_thread_optional(self, mock_vacation):
+        """TC-12-19: With the weekly thread live, nobody gets pinged for the daily one"""
         bot_module.PERSONAL_REMINDER_USER_ID = "U111"
 
         bot_module.check_missing_reports()
@@ -1930,11 +1929,31 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.mock_app.client.files_upload_v2.assert_not_called()
         self.mock_app.client.chat_postMessage.assert_not_called()
 
-    @patch('main._is_friday', return_value=True)
     @patch('main.random.choice', return_value="mvp")
     @patch('main.get_vacation_users', return_value=set())
-    def test_weekly_off_restores_friday_daily_reminder(self, mock_vacation, mock_choice, mock_friday):
-        """TC-12-20: With WEEKLY_UPDATES=0 Friday behaves exactly like today"""
+    def test_failed_weekly_post_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
+        """TC-12-20: If the weekly post never landed, Friday is not left without any nudge"""
+        bot_module.weekly_thread_ts = None
+
+        bot_module.check_missing_reports()
+
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_stale_weekly_thread_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
+        """TC-12-21: Last week's thread does not make today's daily thread optional"""
+        bot_module.weekly_thread_ts = self._last_week_ts()
+
+        bot_module.check_missing_reports()
+
+        self.mock_app.client.files_upload_v2.assert_called_once()
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_weekly_off_restores_the_daily_reminder(self, mock_vacation, mock_choice):
+        """TC-12-22: WEEKLY_UPDATES=0 brings the daily pings back even on Friday"""
         bot_module.WEEKLY_UPDATES = "0"
 
         bot_module.check_missing_reports()
@@ -1942,24 +1961,101 @@ class TestWeeklyUpdates(unittest.TestCase):
         call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
 
-    @patch('main._is_friday', return_value=True)
-    def test_friday_close_message_keeps_the_weekly_thread_open(self, mock_friday):
-        """TC-12-21: 13:00 closes the daily thread, not the weekly one"""
+    def test_close_message_promises_a_weekly_thread_only_when_one_exists(self):
+        """TC-12-23: The 13:01 close message never advertises a thread that failed to post"""
         bot_module.post_thread_closed()
+        with_weekly = self.mock_app.client.chat_postMessage.call_args[1]['text']
 
-        text = self.mock_app.client.chat_postMessage.call_args[1]['text']
+        self.mock_app.client.chat_postMessage.reset_mock()
+        bot_module.weekly_thread_ts = None
+        bot_module.post_thread_closed()
+        without_weekly = self.mock_app.client.chat_postMessage.call_args[1]['text']
+
         self.assertEqual(
-            text,
+            with_weekly,
             bot_module.THREAD_CLOSED_MESSAGE + bot_module.FRIDAY_THREAD_CLOSED_SUFFIX,
         )
+        self.assertEqual(without_weekly, bot_module.THREAD_CLOSED_MESSAGE)
 
-    def test_is_friday_matches_weekday_four(self):
-        """TC-12-22: The Friday guard tracks the real calendar"""
-        with patch('main.date') as mock_date:
-            mock_date.today.return_value = date(2026, 8, 21)  # Friday
-            self.assertTrue(bot_module._is_friday())
-            mock_date.today.return_value = date(2026, 8, 20)  # Thursday
-            self.assertFalse(bot_module._is_friday())
+    def test_weekly_thread_is_today_uses_the_bot_timezone(self):
+        """TC-12-24: The staleness guard compares both sides in Europe/Paris"""
+        self.assertTrue(bot_module._weekly_thread_is_today())
+
+        bot_module.weekly_thread_ts = self._last_week_ts()
+        self.assertFalse(bot_module._weekly_thread_is_today())
+
+        bot_module.weekly_thread_ts = None
+        self.assertFalse(bot_module._weekly_thread_is_today())
+
+    # --- the kill switch really stops the weekly path ------------------------
+
+    def test_weekly_reply_is_ignored_when_the_switch_is_off(self):
+        """TC-12-25: WEEKLY_UPDATES=0 stops weekly writes, so dropping the table is safe"""
+        handler = self._register_handler()
+        bot_module.WEEKLY_UPDATES = "0"
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "my week",
+            "ts": "9999999999.000004",
+            "thread_ts": bot_module.weekly_thread_ts,
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_not_called()
+        self.mock_app.client.reactions_add.assert_not_called()
+
+    def test_weekly_reply_is_ignored_when_the_thread_is_stale(self):
+        """TC-12-26: A reply to last week's thread is not recorded under today's date"""
+        handler = self._register_handler()
+        bot_module.weekly_thread_ts = self._last_week_ts()
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "late comment",
+            "ts": "9999999999.000005",
+            "thread_ts": bot_module.weekly_thread_ts,
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_not_called()
+
+    def test_event_without_an_author_is_ignored(self):
+        """TC-12-27: A message event with no user does not raise inside the handler"""
+        handler = self._register_handler()
+
+        handler(body={"event": {
+            "text": "posted by something without a user id",
+            "ts": "9999999999.000006",
+            "thread_ts": "1234567890.123456",
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_not_called()
+
+    def test_missing_weekly_users_refuses_to_read_the_daily_thread(self):
+        """TC-12-28: Without a weekly thread the roster check bails instead of retargeting"""
+        bot_module.weekly_thread_ts = None
+
+        self.assertIsNone(bot_module.get_missing_weekly_users())
+        self.mock_app.client.conversations_replies.assert_not_called()
+
+    # --- failures are announced, not just logged ----------------------------
+
+    @patch('main.send_alert')
+    def test_failed_weekly_post_raises_an_alert(self, mock_alert):
+        """TC-12-29: A failed weekly post is announced, so a silent Friday is impossible"""
+        self.mock_app.client.chat_postMessage.side_effect = Exception("slack 429")
+
+        bot_module.post_weekly_thread()
+
+        self.assertIn("Could not post this week's update thread", mock_alert.call_args[0][0])
+
+    @patch('main.send_alert')
+    def test_reminder_alerts_when_there_is_no_weekly_thread(self, mock_alert):
+        """TC-12-30: A missing weekly thread at 16:30 is surfaced to the alert channel"""
+        bot_module.weekly_thread_ts = None
+
+        bot_module.check_missing_weekly_reports()
+
+        self.assertIn("No weekly thread from today", mock_alert.call_args[0][0])
 
 
 # ---------------------------------------------------------

@@ -39,7 +39,7 @@ WEEKLY_UPDATES=0
 
 ## Supabase migration: `weekly_reports`
 
-The Friday weekly-update thread stores replies in their own table. Without it the bot still posts and still nudges people — the roster check falls back to reading the Slack thread — but every write fails with `PGRST205` in the logs and no update is recorded. Run this before merging the weekly-update change.
+The Friday weekly-update thread stores replies in their own table. Without it the thread still posts and still closes at 18:01, but nothing is recorded **and the enforcement goes silent**: `get_missing_weekly_users()` raises `PGRST205` before it can fall back to reading the Slack thread, so the 16:30 reminder and the 18:30 escalation both log an error and return. Run this before merging the weekly-update change.
 
 ### How the connection works
 
@@ -120,7 +120,7 @@ Dropping it is safe once `WEEKLY_UPDATES=0` is set and the service has restarted
 drop table weekly_reports;
 ```
 
-Do it in that order. With the weekly flow still active, a dropped table means a `PGRST205` on every Friday reply.
+Do it in that order. With `WEEKLY_UPDATES=0` set and the service restarted, the bot no longer restores `weekly_thread_ts` and no longer records replies in the weekly thread, so the table is safe to drop. With the weekly flow still active, a dropped table means a `PGRST205` on every Friday reply.
 
 ## Local verification before deploy
 
@@ -171,10 +171,12 @@ On the first Friday after deploying the weekly-update change, also verify:
 
 1. `09:06` — a second, standalone message appears in the channel (not a reply), and a pointer reply with a link to it appears in the daily thread
 2. A reply in the weekly thread gets a reaction, and a row shows up in `weekly_reports` for that user and date
-3. `12:30` and `21:00` — **no** daily reminder and **no** daily escalation; the logs read `Friday: the daily thread is optional`
+3. `12:30` and `21:00` — **no** daily reminder and **no** daily escalation; the logs read `Weekly thread is live — the daily thread is optional today`
 4. `13:01` — the daily close message ends with `The weekly update thread stays open until 18:00.`
 5. `16:30` — only people with no weekly update are pinged, inside the weekly thread
 6. `18:01` and `18:30` — the weekly thread is closed, and anyone still missing is escalated to `@dk`
+
+If the `09:06` post ever fails, none of the Friday relaxations apply: the daily reminder, personal DM, and end-of-day escalation run exactly as they do on any other weekday, and an alert goes to `ALERT_CHANNEL_ID`. Friday is never left without any nudge at all.
 
 Before exercising reminder or escalation media, verify that the installed bot token has the `files:write` scope. The bot uploads local GIF/PNG assets from `assets/monkey-business/` with the copy in `initial_comment`; upload failures fall back to a text-only thread reply.
 
@@ -210,8 +212,8 @@ The five reaction-only aliases (`pink-monke`, `monkey-zen`, `omg-monkey`, `matri
 ### No weekly thread appeared on Friday
 
 - Confirm `WEEKLY_UPDATES` is not `0` and `SKIP_TODAY` is not `1`
-- Check the logs for `Posted weekly thread` at `09:06 Europe/Paris`
-- If reminders were skipped with `No weekly thread from today`, the `09:06` post failed: the weekly jobs deliberately refuse to touch a thread that is not from today, so last week's thread never gets stray pings
+- Check the logs for `Posted weekly thread` at `09:06 Europe/Paris`, and `ALERT_CHANNEL_ID` for `Could not post this week's update thread`
+- If reminders were skipped with `No weekly thread from today`, the `09:06` post failed: the weekly jobs deliberately refuse to touch a thread that is not from today, so last week's thread never gets stray pings — and the daily reminders take over for that day
 
 ### Thread recovery after restart fails
 
