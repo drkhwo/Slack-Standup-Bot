@@ -10,7 +10,7 @@ import re
 import sys
 import unittest
 from unittest.mock import MagicMock, patch, call
-from datetime import date
+from datetime import date, datetime, time
 from pathlib import Path
 
 # Mock external dependencies before importing main
@@ -1097,7 +1097,7 @@ class TestMainFunction(unittest.TestCase):
         mock_app.client.chat_postMessage.return_value = {"ts": "123"}
         bot_module.main()
         mock_sched_cls.assert_called_once_with(timezone=bot_module.LOCAL_TIMEZONE)
-        self.assertEqual(mock_sched.add_job.call_count, 5)
+        self.assertEqual(mock_sched.add_job.call_count, 9)
         add_job_calls = mock_sched.add_job.call_args_list
         self.assertEqual(add_job_calls[0][0][0], bot_module.post_daily_thread)
         self.assertEqual(add_job_calls[0][1]['hour'], 9)
@@ -1112,6 +1112,22 @@ class TestMainFunction(unittest.TestCase):
         self.assertEqual(add_job_calls[3][1]['minute'], 1)
         self.assertEqual(add_job_calls[4][0][0], bot_module.post_end_of_day_escalation)
         self.assertEqual(add_job_calls[4][1]['hour'], 21)
+        self.assertEqual(add_job_calls[5][0][0], bot_module.post_weekly_thread)
+        self.assertEqual(add_job_calls[5][1]['day_of_week'], 'fri')
+        self.assertEqual(add_job_calls[5][1]['hour'], 9)
+        self.assertEqual(add_job_calls[5][1]['minute'], 6)
+        self.assertEqual(add_job_calls[6][0][0], bot_module.check_missing_weekly_reports)
+        self.assertEqual(add_job_calls[6][1]['day_of_week'], 'fri')
+        self.assertEqual(add_job_calls[6][1]['hour'], 16)
+        self.assertEqual(add_job_calls[6][1]['minute'], 30)
+        self.assertEqual(add_job_calls[7][0][0], bot_module.post_weekly_thread_closed)
+        self.assertEqual(add_job_calls[7][1]['day_of_week'], 'fri')
+        self.assertEqual(add_job_calls[7][1]['hour'], 18)
+        self.assertEqual(add_job_calls[7][1]['minute'], 1)
+        self.assertEqual(add_job_calls[8][0][0], bot_module.post_weekly_escalation)
+        self.assertEqual(add_job_calls[8][1]['day_of_week'], 'fri')
+        self.assertEqual(add_job_calls[8][1]['hour'], 18)
+        self.assertEqual(add_job_calls[8][1]['minute'], 30)
         mock_sched.start.assert_called_once()
 
 
@@ -1607,6 +1623,442 @@ class TestExtractTodaySection(unittest.TestCase):
 
 
 # ---------------------------------------------------------
+# TC-12: Friday weekly updates
+# ---------------------------------------------------------
+class TestWeeklyUpdates(unittest.TestCase):
+
+    @staticmethod
+    def _today_ts():
+        """A Slack ts that falls on today in the bot's timezone."""
+        noon = datetime.combine(date.today(), time(12, 0), tzinfo=bot_module.LOCAL_TIMEZONE)
+        return f"{noon.timestamp():.6f}"
+
+    @staticmethod
+    def _last_week_ts():
+        noon = datetime.combine(date.today(), time(12, 0), tzinfo=bot_module.LOCAL_TIMEZONE)
+        return f"{noon.timestamp() - 7 * 24 * 3600:.6f}"
+
+    def setUp(self):
+        self.mock_app = MagicMock()
+        self.mock_supabase = MagicMock()
+        bot_module.app = self.mock_app
+        bot_module.supabase = self.mock_supabase
+        bot_module.CHANNEL_ID = 'C08UT7VP2TA'
+        bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
+        bot_module.daily_thread_ts = "1234567890.123456"
+        bot_module.weekly_thread_ts = self._today_ts()
+
+        self.original_weekly_updates = bot_module.WEEKLY_UPDATES
+        self.original_skip_today = bot_module.SKIP_TODAY
+        self.original_alert_channel = bot_module.ALERT_CHANNEL_ID
+        self.original_personal_user = bot_module.PERSONAL_REMINDER_USER_ID
+        bot_module.WEEKLY_UPDATES = "1"
+        bot_module.SKIP_TODAY = ""
+        bot_module.ALERT_CHANNEL_ID = None
+
+        # Default: nobody has reported yet
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+    def tearDown(self):
+        bot_module.WEEKLY_UPDATES = self.original_weekly_updates
+        bot_module.SKIP_TODAY = self.original_skip_today
+        bot_module.ALERT_CHANNEL_ID = self.original_alert_channel
+        bot_module.PERSONAL_REMINDER_USER_ID = self.original_personal_user
+        bot_module.weekly_thread_ts = None
+
+    def _register_handler(self):
+        bot_module.register_events(self.mock_app)
+        return self.mock_app.event.return_value.call_args[0][0]
+
+    # --- post_weekly_thread -------------------------------------------------
+
+    def test_posts_standalone_message_and_stores_ts(self):
+        """TC-12-01: The weekly thread is its own channel message, not a daily reply"""
+        self.mock_app.client.chat_postMessage.return_value = {"ts": "1787200000.000100"}
+
+        bot_module.post_weekly_thread()
+
+        first_call = self.mock_app.client.chat_postMessage.call_args_list[0]
+        self.assertEqual(first_call[1]['channel'], 'C08UT7VP2TA')
+        self.assertNotIn('thread_ts', first_call[1])
+        self.assertEqual(first_call[1]['text'], bot_module.WEEKLY_THREAD_TEXT)
+        self.assertEqual(bot_module.weekly_thread_ts, "1787200000.000100")
+
+    def test_persists_weekly_thread_ts_to_bot_state(self):
+        """TC-12-02: weekly_thread_ts survives a restart via bot_state"""
+        self.mock_app.client.chat_postMessage.return_value = {"ts": "1787200000.000100"}
+
+        bot_module.post_weekly_thread()
+
+        self.mock_supabase.table.assert_any_call("bot_state")
+        upsert_arg = self.mock_supabase.table.return_value.upsert.call_args[0][0]
+        self.assertEqual(upsert_arg, {"key": "weekly_thread_ts", "value": "1787200000.000100"})
+
+    def test_points_the_daily_thread_at_the_weekly_one(self):
+        """TC-12-03: A pointer in the daily thread removes the which-thread question"""
+        self.mock_app.client.chat_postMessage.return_value = {"ts": "1787200000.000100"}
+
+        bot_module.post_weekly_thread()
+
+        pointer_call = self.mock_app.client.chat_postMessage.call_args_list[1]
+        self.assertEqual(pointer_call[1]['thread_ts'], "1234567890.123456")
+        self.assertIn(
+            "https://slack.com/archives/C08UT7VP2TA/p1787200000000100",
+            pointer_call[1]['text'],
+        )
+        self.assertIn("mandatory", pointer_call[1]['text'])
+        self.assertIn("optional", pointer_call[1]['text'])
+
+    def test_thread_survives_bot_state_write_failure(self):
+        """TC-12-04: A Supabase failure does not lose the posted thread"""
+        self.mock_app.client.chat_postMessage.return_value = {"ts": "1787200000.000100"}
+        self.mock_supabase.table.return_value.upsert.return_value.execute.side_effect = Exception("db down")
+
+        bot_module.post_weekly_thread()
+
+        self.assertEqual(bot_module.weekly_thread_ts, "1787200000.000100")
+        self.assertEqual(self.mock_app.client.chat_postMessage.call_count, 2)
+
+    def test_weekly_copy_states_the_deadline_and_the_contract(self):
+        """TC-12-05: Weekly copy carries 1000% clarity: deadline, mandate, context link"""
+        text = bot_module.WEEKLY_THREAD_TEXT
+        self.assertIn("18:00", text)
+        self.assertIn("mandatory", text)
+        self.assertIn("separate from the daily thread", text)
+        for subteam in ("S074DP77Q9H", "S08EJBE5Q4X", "S0BHNJ7J12M"):
+            self.assertIn(subteam, text)
+        self.assertIn(
+            "https://replika.slack.com/archives/C071GDMB667/p1787130010738909",
+            text,
+        )
+        self.assertIn("cc: <@U068KKKNP9R>", text)
+        self.assertIn("repost it here", bot_module.WEEKLY_REMINDER_MESSAGE)
+
+    def test_weekly_copy_adds_no_extra_monkey_emoji(self):
+        """TC-12-06: Weekly copy keeps the 🐒 budget untouched (see TC-06-08)"""
+        weekly_copy = "\n".join((
+            bot_module.WEEKLY_THREAD_TEXT,
+            bot_module.WEEKLY_DAILY_POINTER,
+            bot_module.WEEKLY_REMINDER_MESSAGE,
+            bot_module.WEEKLY_THREAD_CLOSED_MESSAGE,
+            bot_module.FRIDAY_THREAD_CLOSED_SUFFIX,
+        ))
+        self.assertNotIn("🐒", weekly_copy)
+
+    # --- switches -----------------------------------------------------------
+
+    def test_weekly_updates_off_silences_every_weekly_job(self):
+        """TC-12-07: WEEKLY_UPDATES=0 restores the daily-only behaviour"""
+        bot_module.WEEKLY_UPDATES = "0"
+
+        bot_module.post_weekly_thread()
+        bot_module.check_missing_weekly_reports()
+        bot_module.post_weekly_thread_closed()
+        bot_module.post_weekly_escalation()
+
+        self.mock_app.client.chat_postMessage.assert_not_called()
+        self.mock_app.client.files_upload_v2.assert_not_called()
+
+    def test_skip_today_silences_every_weekly_job(self):
+        """TC-12-08: SKIP_TODAY=1 suppresses the weekly flow like the daily one"""
+        bot_module.SKIP_TODAY = "1"
+
+        bot_module.post_weekly_thread()
+        bot_module.check_missing_weekly_reports()
+        bot_module.post_weekly_thread_closed()
+        bot_module.post_weekly_escalation()
+
+        self.mock_app.client.chat_postMessage.assert_not_called()
+        self.mock_app.client.files_upload_v2.assert_not_called()
+
+    def test_stale_weekly_thread_is_never_used(self):
+        """TC-12-09: Last week's thread gets no pings when today's post never landed"""
+        bot_module.weekly_thread_ts = self._last_week_ts()
+
+        bot_module.check_missing_weekly_reports()
+        bot_module.post_weekly_thread_closed()
+        bot_module.post_weekly_escalation()
+
+        self.mock_app.client.chat_postMessage.assert_not_called()
+        self.mock_app.client.files_upload_v2.assert_not_called()
+
+    # --- reply routing ------------------------------------------------------
+
+    def test_weekly_reply_is_saved_to_weekly_reports(self):
+        """TC-12-10: Replies in the weekly thread land in weekly_reports"""
+        handler = self._register_handler()
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "shipped X, reflected on Y",
+            "ts": "9999999999.000001",
+            "thread_ts": bot_module.weekly_thread_ts,
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_called_with("weekly_reports")
+        insert_data = self.mock_supabase.table.return_value.insert.call_args[0][0]
+        self.assertEqual(insert_data['user_id'], "U999")
+        self.assertEqual(insert_data['raw_text'], "shipped X, reflected on Y")
+        self.assertEqual(insert_data['date'], date.today().isoformat())
+        self.mock_app.client.reactions_add.assert_called_once()
+
+    def test_daily_reply_still_goes_to_standup_reports(self):
+        """TC-12-11: Adding the weekly branch does not reroute daily replies"""
+        handler = self._register_handler()
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "Yesterday X, Today Y",
+            "ts": "9999999999.000002",
+            "thread_ts": "1234567890.123456",
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_called_with("standup_reports")
+
+    def test_reply_outside_both_threads_is_ignored(self):
+        """TC-12-12: A reply in an unrelated thread writes nothing"""
+        handler = self._register_handler()
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "unrelated",
+            "ts": "9999999999.000003",
+            "thread_ts": "1111111111.111111",
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_not_called()
+
+    # --- who is missing -----------------------------------------------------
+
+    @patch('main.get_vacation_users', return_value={"U333"})
+    def test_missing_weekly_users_excludes_reporters_and_vacationers(self, mock_vacation):
+        """TC-12-13: The weekly roster check reads weekly_reports and skips PTO"""
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"user_id": "U111"}]
+        )
+
+        missing = bot_module.get_missing_weekly_users()
+
+        self.mock_supabase.table.assert_any_call("weekly_reports")
+        self.assertEqual(missing, ["U222"])
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_missing_weekly_users_reads_the_weekly_thread_history(self, mock_vacation):
+        """TC-12-14: A reply seen only in Slack still counts as reported"""
+        self.mock_app.client.conversations_replies.return_value = {
+            "messages": [{"user": "U222", "text": "my week"}],
+            "response_metadata": {},
+        }
+
+        missing = bot_module.get_missing_weekly_users()
+
+        replies_kwargs = self.mock_app.client.conversations_replies.call_args[1]
+        self.assertEqual(replies_kwargs['ts'], bot_module.weekly_thread_ts)
+        self.assertNotIn("U222", missing)
+
+    # --- reminder, close, escalation ----------------------------------------
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_reminder_pings_missing_users_in_the_weekly_thread(self, mock_vacation, mock_choice):
+        """TC-12-15: The 16:30 nudge lands in the weekly thread, not the daily one"""
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"user_id": "U111"}]
+        )
+
+        bot_module.check_missing_weekly_reports()
+
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertEqual(call_kwargs['thread_ts'], bot_module.weekly_thread_ts)
+        self.assertIn("<@U222> <@U333>", call_kwargs['initial_comment'])
+        self.assertIn("repost it here", call_kwargs['initial_comment'])
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_reminder_stays_silent_when_everyone_posted(self, mock_vacation):
+        """TC-12-16: No nudge when the whole roster posted its week"""
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"user_id": "U111"}, {"user_id": "U222"}, {"user_id": "U333"}]
+        )
+
+        bot_module.check_missing_weekly_reports()
+
+        self.mock_app.client.files_upload_v2.assert_not_called()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    def test_weekly_thread_closed_posts_in_the_weekly_thread(self):
+        """TC-12-17: The 18:01 close message closes the weekly thread only"""
+        bot_module.post_weekly_thread_closed()
+
+        self.mock_app.client.chat_postMessage.assert_called_once_with(
+            channel='C08UT7VP2TA',
+            thread_ts=bot_module.weekly_thread_ts,
+            text=bot_module.WEEKLY_THREAD_CLOSED_MESSAGE,
+        )
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_escalation_pings_the_ceo(self, mock_vacation, mock_choice):
+        """TC-12-18: Whoever is still missing at 18:30 is escalated to the CEO"""
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"user_id": "U111"}, {"user_id": "U222"}]
+        )
+
+        bot_module.post_weekly_escalation()
+
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertEqual(call_kwargs['thread_ts'], bot_module.weekly_thread_ts)
+        self.assertEqual(
+            call_kwargs['initial_comment'],
+            "End-of-week check: <@U333> still have no weekly update in this thread. "
+            "<@U068KKKNP9R>, please take a look.",
+        )
+
+    # --- the daily thread is optional only while the weekly one is live ------
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_live_weekly_thread_makes_the_daily_thread_optional(self, mock_vacation):
+        """TC-12-19: With the weekly thread live, nobody gets pinged for the daily one"""
+        bot_module.PERSONAL_REMINDER_USER_ID = "U111"
+
+        bot_module.check_missing_reports()
+        bot_module.post_end_of_day_escalation()
+        bot_module.send_personal_standup_reminder()
+
+        self.mock_app.client.files_upload_v2.assert_not_called()
+        self.mock_app.client.chat_postMessage.assert_not_called()
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_failed_weekly_post_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
+        """TC-12-20: If the weekly post never landed, Friday is not left without any nudge"""
+        bot_module.weekly_thread_ts = None
+
+        bot_module.check_missing_reports()
+
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_stale_weekly_thread_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
+        """TC-12-21: Last week's thread does not make today's daily thread optional"""
+        bot_module.weekly_thread_ts = self._last_week_ts()
+
+        bot_module.check_missing_reports()
+
+        self.mock_app.client.files_upload_v2.assert_called_once()
+
+    @patch('main.random.choice', return_value="mvp")
+    @patch('main.get_vacation_users', return_value=set())
+    def test_weekly_off_restores_the_daily_reminder(self, mock_vacation, mock_choice):
+        """TC-12-22: WEEKLY_UPDATES=0 brings the daily pings back even on Friday"""
+        bot_module.WEEKLY_UPDATES = "0"
+
+        bot_module.check_missing_reports()
+
+        call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
+        self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
+
+    def test_close_message_promises_a_weekly_thread_only_when_one_exists(self):
+        """TC-12-23: The 13:01 close message never advertises a thread that failed to post"""
+        bot_module.post_thread_closed()
+        with_weekly = self.mock_app.client.chat_postMessage.call_args[1]['text']
+
+        self.mock_app.client.chat_postMessage.reset_mock()
+        bot_module.weekly_thread_ts = None
+        bot_module.post_thread_closed()
+        without_weekly = self.mock_app.client.chat_postMessage.call_args[1]['text']
+
+        self.assertEqual(
+            with_weekly,
+            bot_module.THREAD_CLOSED_MESSAGE + bot_module.FRIDAY_THREAD_CLOSED_SUFFIX,
+        )
+        self.assertEqual(without_weekly, bot_module.THREAD_CLOSED_MESSAGE)
+
+    def test_weekly_thread_is_today_uses_the_bot_timezone(self):
+        """TC-12-24: The staleness guard compares both sides in Europe/Paris"""
+        self.assertTrue(bot_module._weekly_thread_is_today())
+
+        bot_module.weekly_thread_ts = self._last_week_ts()
+        self.assertFalse(bot_module._weekly_thread_is_today())
+
+        bot_module.weekly_thread_ts = None
+        self.assertFalse(bot_module._weekly_thread_is_today())
+
+    # --- the kill switch really stops the weekly path ------------------------
+
+    def test_weekly_reply_is_ignored_when_the_switch_is_off(self):
+        """TC-12-25: WEEKLY_UPDATES=0 stops weekly writes, so dropping the table is safe"""
+        handler = self._register_handler()
+        bot_module.WEEKLY_UPDATES = "0"
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "my week",
+            "ts": "9999999999.000004",
+            "thread_ts": bot_module.weekly_thread_ts,
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_not_called()
+        self.mock_app.client.reactions_add.assert_not_called()
+
+    def test_weekly_reply_is_ignored_when_the_thread_is_stale(self):
+        """TC-12-26: A reply to last week's thread is not recorded under today's date"""
+        handler = self._register_handler()
+        bot_module.weekly_thread_ts = self._last_week_ts()
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "late comment",
+            "ts": "9999999999.000005",
+            "thread_ts": bot_module.weekly_thread_ts,
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_not_called()
+
+    def test_event_without_an_author_is_ignored(self):
+        """TC-12-27: A message event with no user does not raise inside the handler"""
+        handler = self._register_handler()
+
+        handler(body={"event": {
+            "text": "posted by something without a user id",
+            "ts": "9999999999.000006",
+            "thread_ts": "1234567890.123456",
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.assert_not_called()
+
+    def test_missing_weekly_users_refuses_to_read_the_daily_thread(self):
+        """TC-12-28: Without a weekly thread the roster check bails instead of retargeting"""
+        bot_module.weekly_thread_ts = None
+
+        self.assertIsNone(bot_module.get_missing_weekly_users())
+        self.mock_app.client.conversations_replies.assert_not_called()
+
+    # --- failures are announced, not just logged ----------------------------
+
+    @patch('main.send_alert')
+    def test_failed_weekly_post_raises_an_alert(self, mock_alert):
+        """TC-12-29: A failed weekly post is announced, so a silent Friday is impossible"""
+        self.mock_app.client.chat_postMessage.side_effect = Exception("slack 429")
+
+        bot_module.post_weekly_thread()
+
+        self.assertIn("Could not post this week's update thread", mock_alert.call_args[0][0])
+
+    @patch('main.send_alert')
+    def test_reminder_alerts_when_there_is_no_weekly_thread(self, mock_alert):
+        """TC-12-30: A missing weekly thread at 16:30 is surfaced to the alert channel"""
+        bot_module.weekly_thread_ts = None
+
+        bot_module.check_missing_weekly_reports()
+
+        self.assertIn("No weekly thread from today", mock_alert.call_args[0][0])
+
+
+# ---------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------
 if __name__ == '__main__':
@@ -1630,6 +2082,7 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestThreadBoostsRemoved))
     suite.addTests(loader.loadTestsFromTestCase(TestPersonalStandupReminder))
     suite.addTests(loader.loadTestsFromTestCase(TestExtractTodaySection))
+    suite.addTests(loader.loadTestsFromTestCase(TestWeeklyUpdates))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
