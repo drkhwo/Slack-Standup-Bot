@@ -26,6 +26,7 @@ VACATION_TRACKER_API_KEY=...   # optional
 ALERT_CHANNEL_ID=C...          # optional: mirror alerts to a monitoring channel
 DEPLOY_NOTIFY=1                # optional: send deploy notification on startup (set once, then remove)
 SKIP_TODAY=1                   # optional: set to "1" to suppress all reminders for the day; any other value (including "0") means normal operation
+WEEKLY_UPDATES=0               # optional: set to "0" to switch off the Friday weekly-update thread and restore daily-only behaviour
 ```
 
 ## Running tests
@@ -56,16 +57,28 @@ Tests mock all external dependencies (Slack, Supabase, APScheduler) at module lo
 | 13:01 | `post_thread_closed()`      | Closes the active standup thread                |
 | 21:00 | `post_end_of_day_escalation()` | Escalation to CEO if anyone still missing     |
 
+**Friday only** (on top of the daily jobs above, unless `WEEKLY_UPDATES=0`):
+| Time  | Function                        | Description                                            |
+|-------|---------------------------------|--------------------------------------------------------|
+| 09:06 | `post_weekly_thread()`          | Posts the separate weekly-update thread + a pointer in the daily thread |
+| 16:30 | `check_missing_weekly_reports()` | Reminder to people with no weekly update yet          |
+| 18:01 | `post_weekly_thread_closed()`   | Closes the weekly thread                               |
+| 18:30 | `post_weekly_escalation()`      | Escalation to CEO if anyone is still missing           |
+
+On Friday the daily jobs at 09:15, 12:30 and 21:00 return early — the daily thread stays open but nobody is pinged for it twice. The 13:01 close message gains a line saying the weekly thread is open until 18:00.
+
 **Key data flows:**
 1. `post_daily_thread()` posts the standup prompt to `CHANNEL_ID`, saves the returned thread `ts` to `daily_thread_ts` global and the `bot_state` Supabase table so it survives restarts.
 2. `handle_message_events()` listens for replies in that thread. Each persisted reply gets one random reaction from the approved 17-alias set. Subsequent replies from the same user on the same day are appended to the existing record.
 3. `check_missing_reports()` queries `standup_reports` for today's date, cross-references `TEAM_USER_IDS` and vacation data, then uploads one of the 12 manifest-backed local Monkey Business media files with the reminder in-thread, falling back to text if the upload fails.
 4. `post_end_of_day_escalation()` does the same check but pings the CEO (`U068KKKNP9R`) if anyone is still missing.
-5. `get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves` with pagination, maps Vacation Tracker users to Slack IDs via `TEAM_MAPPING`, returns a set of absent UIDs or `"error"` on failure.
+5. `post_weekly_thread()` posts a standalone message (not a reply), stores its `ts` in the `weekly_thread_ts` global and the `bot_state` table, then replies in the daily thread with a link to it. `handle_message_events()` routes replies by thread: daily → `standup_reports`, weekly → `weekly_reports`. Before posting into the weekly thread, each Friday job checks that the stored `ts` is from today, so a failed post never redirects pings into last week's thread.
+6. `get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves` with pagination, maps Vacation Tracker users to Slack IDs via `TEAM_MAPPING`, returns a set of absent UIDs or `"error"` on failure.
 
 **Supabase tables:**
 - `standup_reports` — one row per user per day (`user_id`, `date`, `raw_text`, `thread_ts`); see `setup.sql`
-- `bot_state` — key/value store for `daily_thread_ts` persistence across restarts
+- `weekly_reports` — one row per user per Friday (same shape as `standup_reports`); see `setup.sql`
+- `bot_state` — key/value store for `daily_thread_ts` and `weekly_thread_ts` persistence across restarts
 
 **Deployment:** Dockerfile + `railway.toml` deploy `main.py` on Railway. See `DEPLOY.md` for setup steps.
 
@@ -81,6 +94,8 @@ To remove someone who has left, do all three steps — the first two are deliber
 Then redeploy — until the deploy lands, the running instance keeps the old roster and still pings them.
 
 Someone temporarily away (on leave) stays in `TEAM_MAPPING` untouched — Vacation Tracker excludes them at runtime.
+
+**Friday weekly updates:** Two threads with two different CTAs. The daily thread is posted as usual but is optional; the weekly thread (09:06) asks for a short, human-written summary of the week plus a candid line of reflection, due 18:00, and it is mandatory. Announced by the CEO on 2026-08-19 as an experiment that may eventually replace daily standups. To roll the whole thing back, set `WEEKLY_UPDATES=0` in Railway and restart — the bot then behaves exactly as it did before, and the `weekly_reports` table simply stops filling up.
 
 **Skipping reminders for a day:** Set `SKIP_TODAY=1` in Railway env vars. Important: `SKIP_TODAY=0` does NOT skip — only the value `"1"` does. Remove or set to `0` to resume normal operation.
 

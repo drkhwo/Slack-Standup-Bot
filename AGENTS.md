@@ -51,9 +51,10 @@ Tests mock Slack, Supabase, APScheduler, and dotenv imports at module load time.
 1. `main()` initializes the Slack Bolt app, Supabase client, background scheduler, and message event handler.
 2. `post_daily_thread()` posts the daily standup message to `CHANNEL_ID`, stores the returned Slack timestamp in the in-memory `daily_thread_ts` variable, and persists it into the `bot_state` table.
 3. `post_daily_thread()` immediately posts a vacation status reply in the same thread based on `get_vacation_users()`.
-4. `handle_message_events()` listens for replies in the active daily thread, ignores bot messages, writes or updates the user's report in `standup_reports`, and adds one random approved reaction from the 17-alias set after a successful database write.
+4. `handle_message_events()` listens for replies in the tracked threads, ignores bot messages, writes or updates the user's report in `standup_reports` (daily thread) or `weekly_reports` (Friday weekly thread), and adds one random approved reaction from the 17-alias set after a successful database write.
 5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and uploads one of the 12 manifest-backed local Monkey Business assets with the daytime reminder for anyone still missing.
 6. `post_end_of_day_escalation()` posts a final same-thread escalation at `21:00 Europe/Paris` if anyone is still missing, tagging only `@dk`.
+7. On Fridays `post_weekly_thread()` posts a second, separate thread for weekly updates, links to it from the daily thread, and the daily reminder, personal DM, and end-of-day escalation return early — the daily thread stays open but optional. `check_missing_weekly_reports()`, `post_weekly_thread_closed()`, and `post_weekly_escalation()` then work the weekly thread on its own schedule. `WEEKLY_UPDATES=0` disables all of this.
 
 ### Scheduler configuration
 
@@ -65,6 +66,10 @@ Current jobs are configured directly in `main.py`:
 - Missing-report reminder: weekdays at `12:30`
 - Thread-closed message: weekdays at `13:01`
 - End-of-day escalation: weekdays at `21:00`
+- Weekly update thread: Fridays at `09:06`
+- Weekly missing-update reminder: Fridays at `16:30`
+- Weekly thread-closed message: Fridays at `18:01`
+- Weekly escalation: Fridays at `18:30`
 
 The bot uses `files_upload_v2` with the `files:write` Slack bot scope for reminder and escalation media. If an upload fails, it posts the same copy as a text-only reply in the active thread.
 
@@ -91,9 +96,13 @@ Defined in `setup.sql` and used for one report per user per day:
 
 If a user replies more than once on the same day, the new text is appended to the existing `raw_text` field.
 
+### `weekly_reports`
+
+Defined in `setup.sql` with the same shape as `standup_reports`, used for one weekly update per user per Friday. Repeat replies are appended the same way.
+
 ### `bot_state`
 
-The bot also expects a `bot_state` key/value table for persistence of `daily_thread_ts` across restarts.
+The bot also expects a `bot_state` key/value table for persistence of `daily_thread_ts` and `weekly_thread_ts` across restarts.
 
 Expected shape:
 

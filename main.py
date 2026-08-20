@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import random
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -30,11 +30,15 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 ALERT_CHANNEL_ID = os.environ.get("ALERT_CHANNEL_ID")  # Optional: mirror alerts to a test/monitoring channel
 VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
 SKIP_TODAY = os.environ.get("SKIP_TODAY", "")
+WEEKLY_UPDATES = os.environ.get("WEEKLY_UPDATES", "1")  # "0" restores the daily-only behaviour
 PERSONAL_REMINDER_USER_ID = os.environ.get("PERSONAL_REMINDER_USER_ID", "")
 LOCAL_TIMEZONE = ZoneInfo("Europe/Paris")
 
 # Global state to track the daily thread timestamp
 daily_thread_ts = None
+
+# Global state to track the Friday weekly-update thread timestamp
+weekly_thread_ts = None
 
 # Slack users whose accounts are deactivated but whose identity records may
 # still appear in stale roster data. Keep this list in sync when accounts are
@@ -134,6 +138,62 @@ REMINDER_MESSAGES = (
 
 THREAD_CLOSED_MESSAGE = "DDL passed. Thread closed."
 
+FRIDAY_THREAD_CLOSED_SUFFIX = " The weekly update thread stays open until 18:00."
+
+WEEKLY_THREAD_TEXT = (
+    "<!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M>\n\n"
+    "*Weekly update thread — new, and separate from the daily thread above.*\n\n"
+    "*Reply here before 18:00* with a short, human-written update on what you got done this week.\n"
+    "*Brevity* and *clarity* are the two principles. Then reflect briefly, thoughtfully, and candidly on the results.\n"
+    "Ask your clankers to read your commits or threads, but type and publish the text yourself.\n\n"
+    "*This one is mandatory today.* The daily thread above is optional — post your week here instead.\n"
+    "Full context, an example, and the Q&A: "
+    "<https://replika.slack.com/archives/C071GDMB667/p1787130010738909|neo's announcement>.\n\n"
+    "cc: <@U068KKKNP9R>"
+)
+
+WEEKLY_DAILY_POINTER = (
+    "The weekly update thread is up: <{THREAD_LINK}|post your week there>. "
+    "That one is mandatory today; this daily thread is optional."
+)
+
+WEEKLY_REMINDER_MESSAGE = (
+    "Hey {MENTIONS} — your weekly update is still missing. Reply in this thread before 18:00: "
+    "what you got done this week, plus a candid line of reflection. "
+    "If you already posted it in the daily thread by mistake, just repost it here."
+)
+
+WEEKLY_THREAD_CLOSED_MESSAGE = "Weekly thread closed. This is the record for the week — thanks, everyone."
+
+
+def _weekly_enabled():
+    """Friday weekly updates are on unless explicitly switched off."""
+    return WEEKLY_UPDATES != "0"
+
+
+def _is_friday():
+    return date.today().weekday() == 4
+
+
+def _ts_date(thread_ts):
+    """Return the local date a Slack ts belongs to."""
+    return datetime.fromtimestamp(float(thread_ts), LOCAL_TIMEZONE).date()
+
+
+def _weekly_thread_is_today():
+    """Guard against posting into last week's thread if today's post never landed."""
+    if not weekly_thread_ts:
+        return False
+    try:
+        return _ts_date(weekly_thread_ts) == date.today()
+    except (TypeError, ValueError):
+        logger.warning(f"Could not read the date of weekly_thread_ts: {weekly_thread_ts}")
+        return False
+
+
+def _thread_link(thread_ts):
+    return f"https://slack.com/archives/{CHANNEL_ID}/p{thread_ts.replace('.', '')}"
+
 
 def _get_media_path(alias):
     """Resolve an approved media alias through the checked-in manifest."""
@@ -149,12 +209,13 @@ def _get_media_path(alias):
     return media_path
 
 
-def _upload_thread_media_or_text(text, media_alias):
+def _upload_thread_media_or_text(text, media_alias, thread_ts=None):
     """Upload local thread media, falling back to the same thread as text."""
+    target_ts = thread_ts or daily_thread_ts
     try:
         app.client.files_upload_v2(
             channel=CHANNEL_ID,
-            thread_ts=daily_thread_ts,
+            thread_ts=target_ts,
             file=str(_get_media_path(media_alias)),
             initial_comment=text,
         )
@@ -164,7 +225,7 @@ def _upload_thread_media_or_text(text, media_alias):
         try:
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
-                thread_ts=daily_thread_ts,
+                thread_ts=target_ts,
                 text=text,
             )
         except Exception as fallback_error:
@@ -308,9 +369,10 @@ def get_vacation_users():
         return "error"
 
 
-def get_thread_reported_users():
-    """Return team members who have any non-bot reply in the active Slack thread."""
-    if not app or not CHANNEL_ID or not daily_thread_ts:
+def get_thread_reported_users(thread_ts=None):
+    """Return team members who have any non-bot reply in the given Slack thread."""
+    target_ts = thread_ts or daily_thread_ts
+    if not app or not CHANNEL_ID or not target_ts:
         return set()
 
     reported_users = set()
@@ -320,7 +382,7 @@ def get_thread_reported_users():
         while True:
             request = {
                 "channel": CHANNEL_ID,
-                "ts": daily_thread_ts,
+                "ts": target_ts,
                 "limit": 1000,
             }
             if cursor:
@@ -355,6 +417,18 @@ def get_thread_reported_users():
         return set()
 
 
+def _missing_from(reported_users):
+    """Filter the roster down to whoever still owes an update, minus today's vacationers."""
+    vacation_users = get_vacation_users()
+    if vacation_users == "error":
+        vacation_users = set()
+
+    return [
+        uid for uid in TEAM_USER_IDS
+        if uid not in reported_users and uid not in vacation_users
+    ]
+
+
 def get_missing_users_today():
     """Return users who still have not posted an update today."""
     if not supabase:
@@ -367,14 +441,22 @@ def get_missing_users_today():
     reported_users = {row["user_id"] for row in response.data}
     reported_users.update(get_thread_reported_users())
 
-    vacation_users = get_vacation_users()
-    if vacation_users == "error":
-        vacation_users = set()
+    return _missing_from(reported_users)
 
-    return [
-        uid for uid in TEAM_USER_IDS
-        if uid not in reported_users and uid not in vacation_users
-    ]
+
+def get_missing_weekly_users():
+    """Return users who still have not posted this week's update in the weekly thread."""
+    if not supabase:
+        logger.error("Supabase client not initialized")
+        return None
+
+    today = date.today().isoformat()
+
+    response = supabase.table("weekly_reports").select("user_id").eq("date", today).execute()
+    reported_users = {row["user_id"] for row in response.data}
+    reported_users.update(get_thread_reported_users(weekly_thread_ts))
+
+    return _missing_from(reported_users)
 
 def post_daily_thread():
     global daily_thread_ts
@@ -447,6 +529,9 @@ def check_missing_reports():
     if SKIP_TODAY == "1":
         logger.info("SKIP_TODAY is set — skipping reminder.")
         return
+    if _weekly_enabled() and _is_friday():
+        logger.info("Friday: the daily thread is optional — skipping the daily reminder.")
+        return
     if not daily_thread_ts:
         logger.warning("No daily thread found for today. Skipping check.")
         return
@@ -481,6 +566,8 @@ def post_thread_closed():
 
     try:
         message = THREAD_CLOSED_MESSAGE
+        if _weekly_enabled() and _is_friday():
+            message += FRIDAY_THREAD_CLOSED_SUFFIX
         app.client.chat_postMessage(
             channel=CHANNEL_ID,
             thread_ts=daily_thread_ts,
@@ -495,6 +582,9 @@ def post_end_of_day_escalation():
     global daily_thread_ts
     if SKIP_TODAY == "1":
         logger.info("SKIP_TODAY is set — skipping end-of-day escalation.")
+        return
+    if _weekly_enabled() and _is_friday():
+        logger.info("Friday: the daily thread is optional — skipping the daily escalation.")
         return
     if not daily_thread_ts:
         logger.warning("No daily thread found for today. Skipping end-of-day escalation.")
@@ -515,6 +605,136 @@ def post_end_of_day_escalation():
         logger.info(f"End-of-day escalation sent for missing users: {missing_users}")
     except Exception as e:
         logger.error(f"Error posting end-of-day escalation: {e}")
+
+def post_weekly_thread():
+    """Post Friday's weekly-update thread as its own message in the channel."""
+    global weekly_thread_ts
+
+    if not _weekly_enabled():
+        logger.info("WEEKLY_UPDATES is off — skipping the weekly thread.")
+        return
+    if SKIP_TODAY == "1":
+        logger.info("SKIP_TODAY is set — skipping the weekly thread.")
+        return
+    if not app or not CHANNEL_ID:
+        logger.error("App or CHANNEL_ID not initialized")
+        return
+
+    try:
+        response = app.client.chat_postMessage(
+            channel=CHANNEL_ID,
+            text=WEEKLY_THREAD_TEXT,
+        )
+        weekly_thread_ts = response["ts"]
+        logger.info(f"Posted weekly thread: {weekly_thread_ts}")
+
+        if supabase:
+            try:
+                supabase.table("bot_state").upsert({"key": "weekly_thread_ts", "value": weekly_thread_ts}).execute()
+            except Exception as e:
+                logger.warning(f"Could not save weekly bot state: {e}")
+
+        thread_link = _thread_link(weekly_thread_ts)
+
+        # Point the daily thread at the weekly one so nobody has to guess which is which.
+        if daily_thread_ts:
+            try:
+                app.client.chat_postMessage(
+                    channel=CHANNEL_ID,
+                    thread_ts=daily_thread_ts,
+                    text=WEEKLY_DAILY_POINTER.replace("{THREAD_LINK}", thread_link),
+                )
+            except Exception as e:
+                logger.warning(f"Could not post the weekly pointer in the daily thread: {e}")
+
+        send_alert(f"This week's update thread is live: <{thread_link}|open the weekly thread>")
+
+    except Exception as e:
+        logger.error(f"Error posting weekly thread: {e}")
+
+
+def check_missing_weekly_reports():
+    """Nudge whoever still owes a weekly update, inside the weekly thread."""
+    if not _weekly_enabled():
+        logger.info("WEEKLY_UPDATES is off — skipping the weekly reminder.")
+        return
+    if SKIP_TODAY == "1":
+        logger.info("SKIP_TODAY is set — skipping the weekly reminder.")
+        return
+    if not _weekly_thread_is_today():
+        logger.warning("No weekly thread from today. Skipping the weekly reminder.")
+        return
+
+    try:
+        missing_users = get_missing_weekly_users()
+        if missing_users is None:
+            return
+
+        if missing_users:
+            mentions = " ".join([f"<@{uid}>" for uid in missing_users])
+            message = WEEKLY_REMINDER_MESSAGE.replace("{MENTIONS}", mentions)
+            _upload_thread_media_or_text(message, random.choice(MEDIA_ALIASES), thread_ts=weekly_thread_ts)
+            logger.info(f"Reminded missing weekly reporters: {missing_users}")
+            send_alert(f"Weekly reminder sent to {len(missing_users)} missing reporter(s).")
+        else:
+            logger.info("All active users posted their weekly update. No reminders needed!")
+            send_alert("All weekly updates are in. The weekly thread is complete.")
+
+    except Exception as e:
+        logger.error(f"Error checking missing weekly reports: {e}")
+
+
+def post_weekly_thread_closed():
+    """Close Friday's weekly thread once the 18:00 deadline has passed."""
+    if not _weekly_enabled():
+        logger.info("WEEKLY_UPDATES is off — skipping the weekly close message.")
+        return
+    if SKIP_TODAY == "1":
+        logger.info("SKIP_TODAY is set — skipping the weekly close message.")
+        return
+    if not _weekly_thread_is_today():
+        logger.warning("No weekly thread from today. Skipping the weekly close message.")
+        return
+
+    try:
+        app.client.chat_postMessage(
+            channel=CHANNEL_ID,
+            thread_ts=weekly_thread_ts,
+            text=WEEKLY_THREAD_CLOSED_MESSAGE,
+        )
+        logger.info("Posted weekly thread closed message.")
+    except Exception as e:
+        logger.error(f"Error posting weekly thread closed message: {e}")
+
+
+def post_weekly_escalation():
+    """Escalate to the CEO if anyone is still missing a weekly update."""
+    if not _weekly_enabled():
+        logger.info("WEEKLY_UPDATES is off — skipping the weekly escalation.")
+        return
+    if SKIP_TODAY == "1":
+        logger.info("SKIP_TODAY is set — skipping the weekly escalation.")
+        return
+    if not _weekly_thread_is_today():
+        logger.warning("No weekly thread from today. Skipping the weekly escalation.")
+        return
+
+    try:
+        missing_users = get_missing_weekly_users()
+        if missing_users is None or not missing_users:
+            return
+
+        mentions = " ".join([f"<@{uid}>" for uid in missing_users])
+        text = (
+            f"End-of-week check: {mentions} still have no weekly update in this thread. "
+            f"<@U068KKKNP9R>, please take a look."
+        )
+
+        _upload_thread_media_or_text(text, random.choice(MEDIA_ALIASES), thread_ts=weekly_thread_ts)
+        logger.info(f"Weekly escalation sent for missing users: {missing_users}")
+    except Exception as e:
+        logger.error(f"Error posting weekly escalation: {e}")
+
 
 def _prev_workday(today: date) -> date:
     """Return the previous workday (skips weekends)."""
@@ -537,6 +757,10 @@ def _extract_today_section(raw_text: str) -> str:
 def send_personal_standup_reminder():
     """DM the configured user with their 'Today' plan from yesterday's standup."""
     if not PERSONAL_REMINDER_USER_ID:
+        return
+
+    if _weekly_enabled() and _is_friday():
+        logger.info("Friday: the daily thread is optional — skipping the personal reminder.")
         return
 
     if not app or not supabase:
@@ -590,58 +814,65 @@ def send_personal_standup_reminder():
 def register_events(app_instance):
     @app_instance.event("message")
     def handle_message_events(body, logger):
-        global daily_thread_ts
+        global daily_thread_ts, weekly_thread_ts
         event = body["event"]
-        
-        # Check if it's a reply in the daily thread
-        if daily_thread_ts and event.get("thread_ts") == daily_thread_ts:
-            user_id = event["user"]
-            text = event["text"]
-            ts = event["ts"]
-            today = date.today().isoformat()
-            
-            # Skip bot messages
-            if event.get("bot_id"):
-                return
 
-            logger.info(f"Received report from {user_id}")
-            
-            if not supabase:
-                logger.error("Supabase client not initialized, cannot save report")
-                return
+        # Check which of the tracked threads this reply belongs to
+        reply_thread_ts = event.get("thread_ts")
+        if daily_thread_ts and reply_thread_ts == daily_thread_ts:
+            table = "standup_reports"
+        elif weekly_thread_ts and reply_thread_ts == weekly_thread_ts:
+            table = "weekly_reports"
+        else:
+            return
 
-            try:
-                # 1. Check if this user already reported today
-                existing_record = supabase.table("standup_reports").select("raw_text").eq("user_id", user_id).eq("date", today).execute()
-                
-                if existing_record.data:
-                    # Report exists — append new text to existing
-                    old_text = existing_record.data[0]["raw_text"]
-                    final_text = f"{old_text}\n\n[Addition:]:\n{text}"
-                    
-                    # Update existing record
-                    supabase.table("standup_reports").update({"raw_text": final_text}).eq("user_id", user_id).eq("date", today).execute()
-                    logger.info(f"Updated existing report for {user_id}")
-                else:
-                    # No report yet — create new record
-                    data = {
-                        "user_id": user_id,
-                        "date": today,
-                        "raw_text": text,
-                        "thread_ts": ts
-                    }
-                    supabase.table("standup_reports").insert(data).execute()
-                    logger.info(f"Inserted new report for {user_id}")
-                
-                reaction_name = random.choice(REACTION_ALIASES)
-                app_instance.client.reactions_add(
-                    channel=CHANNEL_ID,
-                    name=reaction_name,
-                    timestamp=ts
-                )
+        user_id = event["user"]
+        text = event["text"]
+        ts = event["ts"]
+        today = date.today().isoformat()
 
-            except Exception as e:
-                logger.error(f"Error saving report: {e}")
+        # Skip bot messages
+        if event.get("bot_id"):
+            return
+
+        logger.info(f"Received {table} entry from {user_id}")
+
+        if not supabase:
+            logger.error("Supabase client not initialized, cannot save report")
+            return
+
+        try:
+            # 1. Check if this user already reported today
+            existing_record = supabase.table(table).select("raw_text").eq("user_id", user_id).eq("date", today).execute()
+
+            if existing_record.data:
+                # Report exists — append new text to existing
+                old_text = existing_record.data[0]["raw_text"]
+                final_text = f"{old_text}\n\n[Addition:]:\n{text}"
+
+                # Update existing record
+                supabase.table(table).update({"raw_text": final_text}).eq("user_id", user_id).eq("date", today).execute()
+                logger.info(f"Updated existing {table} record for {user_id}")
+            else:
+                # No report yet — create new record
+                data = {
+                    "user_id": user_id,
+                    "date": today,
+                    "raw_text": text,
+                    "thread_ts": ts
+                }
+                supabase.table(table).insert(data).execute()
+                logger.info(f"Inserted new {table} record for {user_id}")
+
+            reaction_name = random.choice(REACTION_ALIASES)
+            app_instance.client.reactions_add(
+                channel=CHANNEL_ID,
+                name=reaction_name,
+                timestamp=ts
+            )
+
+        except Exception as e:
+            logger.error(f"Error saving report: {e}")
 
 def send_deploy_notification():
     """Send a one-time deployment confirmation to the alert channel.
@@ -658,7 +889,7 @@ def send_deploy_notification():
 
 
 def main():
-    global app, supabase, daily_thread_ts
+    global app, supabase, daily_thread_ts, weekly_thread_ts
     
     if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
         logger.error("SLACK_BOT_TOKEN or SLACK_APP_TOKEN not set")
@@ -677,6 +908,11 @@ def main():
     scheduler.add_job(check_missing_reports, 'cron', day_of_week='mon-fri', hour=12, minute=30)
     scheduler.add_job(post_thread_closed, 'cron', day_of_week='mon-fri', hour=13, minute=1)
     scheduler.add_job(post_end_of_day_escalation, 'cron', day_of_week='mon-fri', hour=21, minute=0)
+    # Friday only: the weekly update thread runs alongside the daily one.
+    scheduler.add_job(post_weekly_thread, 'cron', day_of_week='fri', hour=9, minute=6)
+    scheduler.add_job(check_missing_weekly_reports, 'cron', day_of_week='fri', hour=16, minute=30)
+    scheduler.add_job(post_weekly_thread_closed, 'cron', day_of_week='fri', hour=18, minute=1)
+    scheduler.add_job(post_weekly_escalation, 'cron', day_of_week='fri', hour=18, minute=30)
     
     scheduler.start()
     
@@ -691,6 +927,14 @@ def main():
                 logger.info(f"Restored daily_thread_ts: {daily_thread_ts}")
         except Exception as e:
             logger.warning(f"Could not restore bot state: {e}")
+
+        try:
+            result = supabase.table("bot_state").select("value").eq("key", "weekly_thread_ts").execute()
+            if result.data:
+                weekly_thread_ts = result.data[0]["value"]
+                logger.info(f"Restored weekly_thread_ts: {weekly_thread_ts}")
+        except Exception as e:
+            logger.warning(f"Could not restore weekly bot state: {e}")
 
     send_deploy_notification()
 
