@@ -65,11 +65,6 @@ class TestConfiguration(unittest.TestCase):
         self.assertIn("U0BMHG7445V", bot_module.TEAM_USER_IDS)  # Natalia Shevchenko
         self.assertNotIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
 
-    def test_gena_is_in_team_roster(self):
-        """TC-01-06: Gena is included in standup report tracking"""
-        self.assertIn("U09RAPHVDPG", bot_module.TEAM_USER_IDS)
-        self.assertEqual(bot_module.TEAM_MAPPING["U09RAPHVDPG"]["email"], "henadz@replika.com")
-
     def test_deactivated_users_are_excluded_from_team_roster(self):
         """TC-01-07: Deactivated Slack users are excluded from active reporting"""
         deactivated_user_ids = {
@@ -79,6 +74,7 @@ class TestConfiguration(unittest.TestCase):
             "U09T69U1Y5V",  # Sebastian
             "U088WHYP2P6",  # Gvantsa
             "U0B8285T563",  # matei
+            "U09RAPHVDPG",  # Gena
         }
         self.assertTrue(deactivated_user_ids.issubset(bot_module.DEACTIVATED_USER_IDS))
         self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_MAPPING))
