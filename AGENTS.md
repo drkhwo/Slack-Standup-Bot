@@ -119,6 +119,10 @@ Required record:
 
 `DEACTIVATED_USER_IDS` is a manual fallback for Slack accounts that are no longer active but may still exist in stale roster data. `TEAM_USER_IDS` is derived from `TEAM_MAPPING`, excludes the CEO (`U068KKKNP9R`), and always excludes IDs in `DEACTIVATED_USER_IDS`. When the team changes, update `TEAM_MAPPING` and keep `DEACTIVATED_USER_IDS` current.
 
+### Adding someone new
+
+Add their record to `TEAM_MAPPING` and pin them with an `assertIn(..., TEAM_USER_IDS)` assertion in the `TestConfiguration` block of `test_bot.py`, then redeploy. If the person has no Vacation Tracker record, leave `vt_user_id` empty — email and normalized name remain the fallback matching keys, and an empty ID simply never matches.
+
 ### Removing someone who has left
 
 Do all three steps — the first two are deliberately redundant, so that a stale entry restored to `TEAM_MAPPING` by mistake still cannot put the person back on the roster:
@@ -130,6 +134,10 @@ Do all three steps — the first two are deliberately redundant, so that a stale
 Then redeploy. Until the deploy lands, the running instance keeps the old roster and will still ping them.
 
 Someone who is merely away — on leave or otherwise temporarily absent — stays in `TEAM_MAPPING` untouched; Vacation Tracker handles that case at runtime.
+
+### User group mention
+
+The daily thread and the weekly thread both open with one Slack user group, `@r-team` (`<!subteam^SF3F5Q5V5>`). The CEO chose it on 2026-08-26 in place of the three separate `@eng-team` / `@brand-team` / `@gtm-team` mentions the posts carried before. The `# == @eng-team ==` comments inside `TEAM_MAPPING` are grouping labels for human readers only and drive no mention at all. Anyone who has to be pinged in the thread header must be a member of `@r-team` in Slack; the bot token carries no `usergroups:read` scope, so nothing in the code can verify that membership.
 
 ## Operational notes
 
