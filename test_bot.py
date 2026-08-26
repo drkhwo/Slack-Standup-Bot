@@ -65,6 +65,11 @@ class TestConfiguration(unittest.TestCase):
         self.assertIn("U0BMHG7445V", bot_module.TEAM_USER_IDS)  # Natalia Shevchenko
         self.assertNotIn("U0B8JM8QSBZ", bot_module.TEAM_USER_IDS)  # ruru
 
+    def test_juan_is_in_team_roster(self):
+        """TC-01-09: Juan is included in standup report tracking"""
+        self.assertIn("U0ABDCB6PNZ", bot_module.TEAM_USER_IDS)
+        self.assertEqual(bot_module.TEAM_MAPPING["U0ABDCB6PNZ"]["name"], "Juan")
+
     def test_deactivated_users_are_excluded_from_team_roster(self):
         """TC-01-07: Deactivated Slack users are excluded from active reporting"""
         deactivated_user_ids = {
