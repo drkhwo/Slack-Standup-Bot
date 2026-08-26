@@ -142,7 +142,7 @@ THREAD_CLOSED_MESSAGE = "DDL passed. Thread closed."
 FRIDAY_THREAD_CLOSED_SUFFIX = " The weekly update thread stays open until 18:00."
 
 WEEKLY_THREAD_TEXT = (
-    "<!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M>\n\n"
+    "<!subteam^SF3F5Q5V5>\n\n"
     "*Weekly update thread — new, and separate from the daily thread above.*\n\n"
     "*Reply here before 18:00* with a short, human-written update on what you got done this week.\n"
     "*Brevity* and *clarity* are the two principles. Then reflect briefly, thoughtfully, and candidly on the results.\n"
@@ -470,7 +470,7 @@ def post_daily_thread():
     
     try:
         standup_text = (
-            f"{phrase} <!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M> 🍌\n\n"
+            f"{phrase} <!subteam^SF3F5Q5V5> 🍌\n\n"
             "*Daily status thread*\n"
             "*Reply in the active thread before 13:00 with:*\n"
             "*Yesterday:* what shipped or merged. If this continues yesterday's work, quote your previous update and add the current status.\n"

@@ -195,11 +195,11 @@ class TestPostDailyThread(unittest.TestCase):
         )
 
     @patch('main.get_vacation_users', return_value=set())
-    def test_post_daily_thread_mentions_gtm_team(self, mock_vacation):
-        """TC-03-06: Daily standup post mentions the GTM user group"""
+    def test_post_daily_thread_mentions_r_team(self, mock_vacation):
+        """TC-03-06: Daily standup post mentions the @r-team user group"""
         bot_module.post_daily_thread()
         text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
-        self.assertIn("<!subteam^S0BHNJ7J12M>", text)
+        self.assertIn("<!subteam^SF3F5Q5V5>", text)
 
     def test_post_daily_thread_skips_if_no_app(self):
         """TC-03-07: post_daily_thread() must exit if app is not initialized"""
@@ -673,7 +673,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         self.assertIn("*Blockers / Risks:* who or what you need to unblock you.", text)
         self.assertIn("*Keep status in this thread; move discussions to subthreads.*", text)
         self.assertIn("*If something will not be finished today, state the remaining time.*", text)
-        self.assertIn("<!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M>", text)
+        self.assertIn("<!subteam^SF3F5Q5V5>", text)
         self.assertIn("cc: <@U068KKKNP9R>", text)
 
     @patch('main.get_opening_phrase', return_value="Status window open. Facts first; side quests in subthreads.")
@@ -684,7 +684,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
         self.assertEqual(text.count("🍌"), 1)
         self.assertIn(
-            "<!subteam^S074DP77Q9H> <!subteam^S08EJBE5Q4X> <!subteam^S0BHNJ7J12M> 🍌",
+            "<!subteam^SF3F5Q5V5> 🍌",
             text,
         )
 
@@ -1726,8 +1726,7 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.assertIn("18:00", text)
         self.assertIn("mandatory", text)
         self.assertIn("separate from the daily thread", text)
-        for subteam in ("S074DP77Q9H", "S08EJBE5Q4X", "S0BHNJ7J12M"):
-            self.assertIn(subteam, text)
+        self.assertIn("SF3F5Q5V5", text)
         self.assertIn(
             "https://replika.slack.com/archives/C071GDMB667/p1787130010738909",
             text,
