@@ -77,7 +77,7 @@ TEAM_MAPPING = {
     "U0BRJ4PA1UG": {"vt_user_id": "", "name": "anastasia mzarelua", "email": "taso@replika.com"},
     "U07SR89J8NA": {"vt_user_id": "slack-9df7fc6d-ecb9-4c8d-bb8f-779e39a91a84", "name": "artiom", "email": "artiom@replika.com"},
     "U0B670M7HU6": {"vt_user_id": "", "name": "danil levinson", "email": ""},
-    "U0ABDCB6PNZ": {"vt_user_id": "", "name": "Juan", "email": "yo@juanbuis.com"},
+    # Juan (U0ABDCB6PNZ, yo@juanbuis.com) is off the reminder roster for now; restore this entry to bring him back.
     "U0BSKK0LGQJ": {"vt_user_id": "", "name": "Oleksii Khoziainov", "email": "oleksii@replika.com"},
     "U0B6RSB4M5E": {"vt_user_id": "slack-4c5703ea-8892-429c-94ff-4d1f09fb7ab3", "name": "Vladimir Lesunov", "email": "vlad@replika.com"},
 
