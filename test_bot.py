@@ -90,6 +90,8 @@ class TestConfiguration(unittest.TestCase):
             "U088WHYP2P6",  # Gvantsa
             "U0B8285T563",  # matei
             "U09RAPHVDPG",  # Gena
+            "U02H9RXPKGT",  # Alexey Leshchuk
+            "USMQ8CRU6",  # Semyon Vlasov
         }
         self.assertTrue(deactivated_user_ids.issubset(bot_module.DEACTIVATED_USER_IDS))
         self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_MAPPING))

@@ -51,13 +51,14 @@ DEACTIVATED_USER_IDS = frozenset({
     "U088WHYP2P6",  # Gvantsa Nebadze
     "U0B8285T563",  # matei
     "U09RAPHVDPG",  # Gena
+    "U02H9RXPKGT",  # Alexey Leshchuk
+    "USMQ8CRU6",  # Semyon Vlasov
 })
 
 # Mapping: Slack User ID -> Vacation Tracker user identity.
 # Vacation Tracker user IDs are the primary matching key; email/name are fallbacks.
 TEAM_MAPPING = {
     # == @eng-team ==
-    "U02H9RXPKGT": {"vt_user_id": "slack-422616fd-66dc-47a2-81dc-f032f05c1c4d", "name": "Alexey Leshchuk", "email": "a.leshchuk@replika.ai"},
     "U08SKHD45U2": {"vt_user_id": "slack-8596b09c-455c-45d3-a169-f780cb4a2bb4", "name": "Anastasia Kondratyuk", "email": "nastassia@replika.com"},
     "U06A6MV64R2": {"vt_user_id": "slack-cd6e696b-b46c-4016-a83b-6f33bdec289d", "name": "andrei", "email": "a.vorsin@replika.ai"},
     "U035U3KTFL5": {"vt_user_id": "slack-e8a42dfa-6dc0-421a-ae5d-977b46ec1cdb", "name": "Anton Tyutin", "email": "tapoton@replika.ai"},
@@ -66,7 +67,6 @@ TEAM_MAPPING = {
     "U09QE0E0HHQ": {"vt_user_id": "slack-986ddb5f-8fca-4fba-bb75-94c26a22afb7", "name": "Giorgio", "email": "giorgio@replika.com"},
     "U0965UA3XQ8": {"vt_user_id": "slack-8878392a-0160-4ed5-859b-b38e2b76aeb8", "name": "maksim", "email": "maksim@replika.com"},
     "U08EFQCMJ3U": {"vt_user_id": "slack-720b8eaa-3d39-4bcd-9d96-57081203ab2d", "name": "Paweł", "email": "pawel@replika.com"},
-    "USMQ8CRU6": {"vt_user_id": "slack-a99afe34-239c-4d72-b80a-40ee405b8e5f", "name": "Semyon Vlasov", "email": "semyon@replika.ai"},
     "U04SBH53P9C": {"vt_user_id": "slack-16602c14-6349-4187-8d72-f29c97ad74ac", "name": "Sergei Mironov", "email": "s.mironov@replika.ai"},
     "U0821BRMJ4R": {"vt_user_id": "slack-876c64e7-4bae-496c-a5b8-2bdfbc192440", "name": "Stan Khvo", "email": "stas@replika.ai"},
     "U098DPA85PY": {"vt_user_id": "slack-3d7c669c-4433-4bad-8a85-76c86e71caa6", "name": "Wojciech Klarowski", "email": "wojciech@replika.com"},
