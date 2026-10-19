@@ -95,6 +95,8 @@ Then redeploy — until the deploy lands, the running instance keeps the old ros
 
 Someone temporarily away (on leave) stays in `TEAM_MAPPING` untouched — Vacation Tracker excludes them at runtime.
 
+Deactivated Slack accounts are also skipped at runtime: `_missing_from()` calls `users.info` for each missing user and drops anyone with `deleted: true`. This needs the `users:read` bot scope; if the lookup fails (e.g. `missing_scope`), the user is kept and pinged, so the safety net never silences an active person. Still remove leavers from the roster with the three steps above.
+
 **User group mention:** the daily and the weekly thread both open with a single Slack user group, `@r-team` (`<!subteam^SF3F5Q5V5>`), decided by the CEO on 2026-08-26 — it replaced the three separate `@eng-team` / `@brand-team` / `@gtm-team` mentions. The `# == @eng-team ==` style comments inside `TEAM_MAPPING` are only grouping labels for humans reading the file; they do not drive any mention. Whoever must be pinged in the thread header has to be a member of `@r-team` in Slack — the bot token has no `usergroups:read` scope, so group membership cannot be checked from code.
 
 **Friday weekly updates:** Two threads with two different CTAs. The daily thread is posted as usual but is optional; the weekly thread (09:06) asks for a short, human-written summary of the week plus a candid line of reflection, due 18:00, and it is mandatory. Announced by the CEO on 2026-08-19 as an experiment that may eventually replace daily standups. To roll the whole thing back, set `WEEKLY_UPDATES=0` in Railway and restart — the bot then behaves exactly as it did before, and the `weekly_reports` table simply stops filling up.
