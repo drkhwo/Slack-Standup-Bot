@@ -41,6 +41,7 @@ Verify the installed production app, not only the Slack API configuration page.
 | `files:write` | Uploads the local GIF/PNG media used by reminders and end-of-day escalation. |
 | `channels:history` | Receives and reads messages and thread history when the configured standup channel is public. |
 | `groups:history` | Use this instead of `channels:history` when the configured standup channel is private. |
+| `users:read` | Checks `users.info` before a reminder or escalation so deactivated Slack accounts are never pinged. Without it the check fails open and everyone on the roster is pinged as before. |
 
 The bot must be a member of the standup channel and any configured alert channel. A scope does not grant access to a channel where the bot is not a member.
 

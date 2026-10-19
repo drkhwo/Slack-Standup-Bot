@@ -80,6 +80,11 @@ class TestConfiguration(unittest.TestCase):
         self.assertIn("U0BSKK0LGQJ", bot_module.TEAM_USER_IDS)
         self.assertEqual(bot_module.TEAM_MAPPING["U0BSKK0LGQJ"]["name"], "Oleksii Khoziainov")
 
+    def test_cara_paguio_is_in_team_roster(self):
+        """TC-01-12: Cara Paguio is included in standup report tracking"""
+        self.assertIn("U0C343CM3MK", bot_module.TEAM_USER_IDS)
+        self.assertEqual(bot_module.TEAM_MAPPING["U0C343CM3MK"]["name"], "Cara Paguio")
+
     def test_deactivated_users_are_excluded_from_team_roster(self):
         """TC-01-07: Deactivated Slack users are excluded from active reporting"""
         deactivated_user_ids = {
@@ -92,6 +97,7 @@ class TestConfiguration(unittest.TestCase):
             "U09RAPHVDPG",  # Gena
             "U02H9RXPKGT",  # Alexey Leshchuk
             "USMQ8CRU6",  # Semyon Vlasov
+            "U011Q8J1PDK",  # Georgii Andrianov
         }
         self.assertTrue(deactivated_user_ids.issubset(bot_module.DEACTIVATED_USER_IDS))
         self.assertTrue(deactivated_user_ids.isdisjoint(bot_module.TEAM_MAPPING))
@@ -378,6 +384,32 @@ class TestGetMissingUsersToday(unittest.TestCase):
     @patch('main.get_vacation_users', return_value="error")
     def test_treats_vacation_api_error_as_no_vacations(self, mock_vacation):
         """TC-04H-03: Shared helper treats vacation API errors as empty vacation set"""
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        missing_users = bot_module.get_missing_users_today()
+
+        self.assertEqual(missing_users, ["U222", "U333"])
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_excludes_deactivated_slack_accounts(self, mock_vacation):
+        """TC-04H-04: Accounts Slack reports as deactivated are never pinged"""
+        bot_module.app = MagicMock()
+        bot_module.app.client.users_info.side_effect = lambda user: {"user": {"id": user, "deleted": user == "U333"}}
+        mock_response = MagicMock()
+        mock_response.data = [{"user_id": "U111"}]
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
+
+        missing_users = bot_module.get_missing_users_today()
+
+        self.assertEqual(missing_users, ["U222"])
+
+    @patch('main.get_vacation_users', return_value=set())
+    def test_keeps_users_when_account_status_lookup_fails(self, mock_vacation):
+        """TC-04H-05: A failed users.info lookup (e.g. missing_scope) keeps the user on the list"""
+        bot_module.app = MagicMock()
+        bot_module.app.client.users_info.side_effect = Exception("missing_scope")
         mock_response = MagicMock()
         mock_response.data = [{"user_id": "U111"}]
         self.mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response

@@ -53,6 +53,7 @@ DEACTIVATED_USER_IDS = frozenset({
     "U09RAPHVDPG",  # Gena
     "U02H9RXPKGT",  # Alexey Leshchuk
     "USMQ8CRU6",  # Semyon Vlasov
+    "U011Q8J1PDK",  # Georgii Andrianov
 })
 
 # Mapping: Slack User ID -> Vacation Tracker user identity.
@@ -63,7 +64,6 @@ TEAM_MAPPING = {
     "U06A6MV64R2": {"vt_user_id": "slack-cd6e696b-b46c-4016-a83b-6f33bdec289d", "name": "andrei", "email": "a.vorsin@replika.ai"},
     "U035U3KTFL5": {"vt_user_id": "slack-e8a42dfa-6dc0-421a-ae5d-977b46ec1cdb", "name": "Anton Tyutin", "email": "tapoton@replika.ai"},
     "U085J8B5TJ6": {"vt_user_id": "slack-c847534e-34c8-49eb-b711-5a7df4efa0bd", "name": "eddy", "email": "ed@replika.ai"},
-    "U011Q8J1PDK": {"vt_user_id": "slack-9c1dd668-ff38-4e5f-b055-094d54eb4178", "name": "Georgii Andrianov", "email": "g.andrianov@replika.ai"},
     "U09QE0E0HHQ": {"vt_user_id": "slack-986ddb5f-8fca-4fba-bb75-94c26a22afb7", "name": "Giorgio", "email": "giorgio@replika.com"},
     "U0965UA3XQ8": {"vt_user_id": "slack-8878392a-0160-4ed5-859b-b38e2b76aeb8", "name": "maksim", "email": "maksim@replika.com"},
     "U08EFQCMJ3U": {"vt_user_id": "slack-720b8eaa-3d39-4bcd-9d96-57081203ab2d", "name": "Paweł", "email": "pawel@replika.com"},
@@ -85,6 +85,7 @@ TEAM_MAPPING = {
     "U0BMCE4HM7D": {"vt_user_id": "", "name": "Arman", "email": "arman@replika.com"},
     "U0BQ926P1B4": {"vt_user_id": "", "name": "Vadym Netrebko", "email": "vadym@replika.com"},
     "U0BMHG7445V": {"vt_user_id": "", "name": "Natalia Shevchenko", "email": "natalia@replika.com"},
+    "U0C343CM3MK": {"vt_user_id": "", "name": "Cara Paguio", "email": "cara@replika.com"},
     
     # == Others ==
     "U068KKKNP9R": {"vt_user_id": "slack-893f60ed-5bb0-429c-b03b-68e0eb54c35a", "name": "dmytro klochko", "email": "1@replika.com"}
@@ -416,15 +417,26 @@ def get_thread_reported_users(thread_ts=None):
         return set()
 
 
+def _is_deactivated(uid):
+    """True only when Slack confirms the account is deactivated; any lookup failure keeps the user."""
+    if not app:
+        return False
+    try:
+        return app.client.users_info(user=uid)["user"].get("deleted") is True
+    except Exception as e:
+        logger.warning(f"Could not check Slack account status for {uid}: {e}")
+        return False
+
+
 def _missing_from(reported_users):
-    """Filter the roster down to whoever still owes an update, minus today's vacationers."""
+    """Filter the roster down to whoever still owes an update, minus today's vacationers and deactivated accounts."""
     vacation_users = get_vacation_users()
     if vacation_users == "error":
         vacation_users = set()
 
     return [
         uid for uid in TEAM_USER_IDS
-        if uid not in reported_users and uid not in vacation_users
+        if uid not in reported_users and uid not in vacation_users and not _is_deactivated(uid)
     ]
 
 
