@@ -4,27 +4,26 @@
 
 The Slack bot identity should be updated manually after the new avatar is ready.
 
-- Set the bot display name to `Monkey Scott`.
-- Replace the current avatar with `assets/avatar/monkey-scott.png`, a monkey version of the existing screaming Michael Scott avatar.
-- Do not use `Gnik Gnok`.
+- Set the bot display name to `Iroh`.
+- Replace the current avatar with `assets/avatar/iroh.png`, Uncle Iroh sipping tea (Avatar: The Last Airbender).
 - Do not create a second bot user or Slack app for this change.
 
-The generated avatar is stored at `assets/avatar/monkey-scott.png` and must be uploaded manually through the Slack App/profile workflow.
+The avatar is stored at `assets/avatar/iroh.png` and must be uploaded manually through the Slack App/profile workflow.
 
 ## Avatar asset
 
-The prepared avatar is available at `assets/avatar/monkey-scott.png`. It is the monkey
-version of the supplied screaming Michael Scott source and must be uploaded manually.
+The prepared avatar is available at `assets/avatar/iroh.png` (512×512, a frame of
+Iroh sipping tea) and must be uploaded manually.
 
 ## Manual profile-change procedure
 
 Perform this as a manual change on the existing production Slack app; do not create a replacement app or bot user.
 
 1. Open [Your Apps](https://api.slack.com/apps) and select the installed production app used by this bot.
-2. Open the app's bot-user settings. If starting from Slack, use the workspace menu: `Tools & settings` → `Manage apps` → select the installed app → open its app settings → `Bot user`. Edit the bot display name to exactly `Monkey Scott`, then save.
-3. Upload `assets/avatar/monkey-scott.png`. Do not use `Gnik Gnok` or an unrelated replacement image.
+2. Open the app's bot-user settings. If starting from Slack, use the workspace menu: `Tools & settings` → `Manage apps` → select the installed app → open its app settings → `Bot user`. Edit the bot display name to exactly `Iroh`, then save.
+3. Upload `assets/avatar/iroh.png`. Do not use an unrelated replacement image.
 4. In the same app settings, open `Basic Information` → `Display Information` and replace the app icon/avatar with the prepared image. Save the change and confirm the preview uses the new image.
-5. Open the installed bot's profile in the workspace and verify that both the display name and avatar are shown as `Monkey Scott`. Do not reinstall the app for a profile-only change; reinstall only if OAuth scopes were changed.
+5. Open the installed bot's profile in the workspace and verify that both the display name and avatar are shown as `Iroh`. Do not reinstall the app for a profile-only change; reinstall only if OAuth scopes were changed.
 
 The runtime uses a Slack App bot token, so its posted messages inherit the Slack App's bot username and icon. Do not add runtime `username`, `icon_url`, or `chat:write.customize` overrides for this profile change.
 
@@ -57,10 +56,9 @@ If a required scope is added or changed, re-authorize/reinstall the Slack app so
 
 ### Profile identity
 
-- [ ] Confirm the original screaming Michael Scott source image was supplied before avatar work started.
-- [ ] Update the bot display name to exactly `Monkey Scott`.
-- [ ] Upload `assets/avatar/monkey-scott.png` as the bot avatar.
-- [ ] Confirm a new standup message shows `Monkey Scott` and the new avatar.
+- [ ] Update the bot display name to exactly `Iroh`.
+- [ ] Upload `assets/avatar/iroh.png` as the bot avatar.
+- [ ] Confirm a new standup message shows `Iroh` and the new avatar.
 - [ ] Confirm no duplicate bot user or replacement app was created.
 
 ### Connection and permissions

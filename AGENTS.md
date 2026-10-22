@@ -52,7 +52,7 @@ Tests mock Slack, Supabase, APScheduler, and dotenv imports at module load time.
 2. `post_daily_thread()` posts the daily standup message to `CHANNEL_ID`, stores the returned Slack timestamp in the in-memory `daily_thread_ts` variable, and persists it into the `bot_state` table.
 3. `post_daily_thread()` immediately posts a vacation status reply in the same thread based on `get_vacation_users()`.
 4. `handle_message_events()` listens for replies in the tracked threads, ignores bot messages, writes or updates the user's report in `standup_reports` (daily thread) or `weekly_reports` (Friday weekly thread), and adds one random approved reaction from the 17-alias set after a successful database write.
-5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and uploads one of the 12 manifest-backed local Monkey Business assets with the daytime reminder for anyone still missing.
+5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and uploads one of the 14 manifest-backed local Uncle Iroh GIFs with the daytime reminder for anyone still missing.
 6. `post_end_of_day_escalation()` posts a final same-thread escalation at `21:00 Europe/Paris` if anyone is still missing, tagging only `@dk`.
 7. On Fridays `post_weekly_thread()` posts a second, separate thread for weekly updates and links to it from the daily thread. While that thread is live, the daily reminder, personal DM, and end-of-day escalation return early — the daily thread stays open but optional. `check_missing_weekly_reports()`, `post_weekly_thread_closed()`, and `post_weekly_escalation()` then work the weekly thread on its own schedule, each refusing to touch a thread that is not from today. Every relaxation and every weekly job is gated on `_weekly_thread_is_today()`, so a failed 09:06 post degrades to the ordinary daily flow plus an alert rather than to silence. `WEEKLY_UPDATES=0` disables all of this, including the reply routing into `weekly_reports`.
 
@@ -73,7 +73,7 @@ Current jobs are configured directly in `main.py`:
 
 The bot uses `files_upload_v2` with the `files:write` Slack bot scope for reminder and escalation media. If an upload fails, it posts the same copy as a text-only reply in the active thread.
 
-Reaction-only aliases are separate from media aliases: `pink-monke`, `monkey-zen`, `omg-monkey`, `matrix-code`, and `matrix-monitors` can confirm saved reports but are not media-upload candidates because they have no manifest files.
+Reaction aliases and media aliases are separate sets: reactions are existing workspace custom emoji (checked against `emoji.list`), media are the GIFs in `assets/iroh/manifest.json`. A new reaction alias must exist in the workspace, otherwise `reactions_add` fails with `invalid_name`.
 
 These values come from APScheduler cron jobs in code and should be treated as the source of truth.
 

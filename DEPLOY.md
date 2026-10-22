@@ -137,7 +137,7 @@ python -m pytest test_bot.py -v
 If the Railway service is connected to the GitHub repository:
 
 ```bash
-git add .dockerignore Dockerfile main.py phrases.py test_bot.py AGENTS.md CLAUDE.md MANIFEST.md DEPLOY.md COPY_PROPOSAL_REVISED.md SLACK_APP_PROFILE_CHECK.md assets/monkey-business
+git add .dockerignore Dockerfile main.py phrases.py test_bot.py AGENTS.md CLAUDE.md MANIFEST.md DEPLOY.md SLACK_APP_PROFILE_CHECK.md assets/iroh
 git commit -m "Add end-of-day missing report escalation"
 git push origin main
 ```
@@ -172,15 +172,15 @@ On the first Friday after deploying the weekly-update change, also verify:
 1. `09:06` — a second, standalone message appears in the channel (not a reply), and a pointer reply with a link to it appears in the daily thread
 2. A reply in the weekly thread gets a reaction, and a row shows up in `weekly_reports` for that user and date
 3. `12:30` and `21:00` — **no** daily reminder and **no** daily escalation; the logs read `Weekly thread is live — the daily thread is optional today`
-4. `13:01` — the daily close message ends with `The weekly update thread stays open until 18:00.`
+4. `13:01` — the daily close message ends with `The weekly thread stays open until 18:00 — there is still time for one more cup.`
 5. `16:30` — only people with no weekly update are pinged, inside the weekly thread
 6. `18:01` and `18:30` — the weekly thread is closed, and anyone still missing is escalated to `@dk`
 
 If the `09:06` post ever fails, none of the Friday relaxations apply: the daily reminder, personal DM, and end-of-day escalation run exactly as they do on any other weekday, and an alert goes to `ALERT_CHANNEL_ID`. Friday is never left without any nudge at all.
 
-Before exercising reminder or escalation media, verify that the installed bot token has the `files:write` scope. The bot uploads local GIF/PNG assets from `assets/monkey-business/` with the copy in `initial_comment`; upload failures fall back to a text-only thread reply.
+Before exercising reminder or escalation media, verify that the installed bot token has the `files:write` scope. The bot uploads local GIF/PNG assets from `assets/iroh/` with the copy in `initial_comment`; upload failures fall back to a text-only thread reply.
 
-The five reaction-only aliases (`pink-monke`, `monkey-zen`, `omg-monkey`, `matrix-code`, and `matrix-monitors`) are not upload candidates because they are not present in the media manifest.
+Reaction aliases are workspace custom emoji and are not upload candidates; uploads use only the aliases in the media manifest.
 
 ## Troubleshooting
 
