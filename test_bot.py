@@ -461,7 +461,7 @@ class TestHandleMessageEvents(unittest.TestCase):
         self.assertEqual(insert_data['raw_text'], "Yesterday did X, today will do Y")
         self.assertEqual(insert_data['date'], date.today().isoformat())
 
-    @patch('main.random.choice', return_value='flow-state')
+    @patch('main.random.choice', return_value='tea-pause')
     def test_adds_random_approved_reaction_after_saving(self, mock_choice):
         """TC-05-02: An approved random reaction is added after saving"""
         body = {"event": {
@@ -474,7 +474,7 @@ class TestHandleMessageEvents(unittest.TestCase):
         mock_choice.assert_called_once_with(bot_module.REACTION_ALIASES)
         self.mock_app.client.reactions_add.assert_called_once_with(
             channel='C08UT7VP2TA',
-            name="flow-state",
+            name="tea-pause",
             timestamp="9999999999.000001"
         )
 
@@ -592,12 +592,12 @@ class TestPhrases(unittest.TestCase):
             self.assertTrue(len(phrase.strip()) > 0)
 
     def test_reaction_aliases_match_approved_manifest_aliases(self):
-        """TC-06-04: Reaction aliases are exactly the approved 17 aliases"""
+        """TC-06-04: Reaction aliases are exactly the approved 17 workspace emoji"""
         expected = {
-            "flow-state", "monkey-business", "investigating", "tired-monke",
-            "together-4", "enough-for-today", "stop-nerding", "ship-smth",
-            "mvp", "mvp-2", "together-3", "together-5", "pink-monke",
-            "monkey-zen", "omg-monkey", "matrix-code", "matrix-monitors",
+            "tea-pause", "meow_bow", "chefkiss", "catjam", "party-parrot",
+            "shipit", "meow_salute", "meow_cheer", "doggo-happy",
+            "impressive-very-nice", "blob-hearts", "dance-vibe", "keanu-thanks",
+            "chill-guy", "eevee-cheering", "thumbs-up-cat", "goodgood",
         }
         self.assertEqual(set(bot_module.REACTION_ALIASES), expected)
         self.assertEqual(len(bot_module.REACTION_ALIASES), 17)
@@ -1539,13 +1539,13 @@ class TestThreadBoostsRemoved(unittest.TestCase):
         self._call_handler(self._standup_body())
         self.mock_app.client.chat_postMessage.assert_not_called()
 
-    @patch('main.random.choice', return_value='flow-state')
+    @patch('main.random.choice', return_value='tea-pause')
     def test_thread_reply_still_gets_confirmation_reaction(self, mock_choice):
         """TC-12-02: Standup replies still get the confirmation reaction"""
         self._call_handler(self._standup_body())
         self.mock_app.client.reactions_add.assert_called_once_with(
             channel='C08UT7VP2TA',
-            name="flow-state",
+            name="tea-pause",
             timestamp="9999999999.000001"
         )
 
