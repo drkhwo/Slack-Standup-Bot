@@ -164,7 +164,7 @@ WEEKLY_DAILY_POINTER = (
 WEEKLY_REMINDER_MESSAGE = (
     "Hey {MENTIONS} — the week is almost brewed, and your weekly update is still missing. Reply in this thread before 18:00: "
     "what you got done this week, plus a candid line of reflection. "
-    "If you posted it in the daily thread by mistake, just repost it here."
+    "If you already posted it in the daily thread by mistake, just repost it here."
 )
 
 WEEKLY_THREAD_CLOSED_MESSAGE = "Weekly thread closed. A week well recorded is a week well remembered — thank you, everyone."

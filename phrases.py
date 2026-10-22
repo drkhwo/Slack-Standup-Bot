@@ -9,7 +9,7 @@ import random
 # ─────────────────────────────────────────────
 
 OPENING_PHRASES = [
-    "Good morning, nephews and nieces. Pour the tea, then share: yesterday, today, blockers. 🍵",
+    "Good morning, nephews and nieces. Pour the tea, then share: yesterday, today, blockers.",
     "The kettle is warm and the thread is open. Come, sit, tell your uncle how the work goes.",
     "A good update is like good tea: not too long, not too weak.",
     "Morning. Before the day begins, let us look at where we have been and where we are going.",
