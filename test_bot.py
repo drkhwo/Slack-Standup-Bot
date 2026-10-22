@@ -603,12 +603,23 @@ class TestPhrases(unittest.TestCase):
         self.assertEqual(len(bot_module.REACTION_ALIASES), 17)
 
     def test_media_aliases_are_manifest_backed_and_exclude_reaction_only_aliases(self):
-        """TC-06-05: Media selection uses the 14 Iroh manifest assets"""
+        """TC-06-05: Media selection uses the 11 Iroh manifest assets"""
         manifest = json.loads(Path(bot_module.MEDIA_MANIFEST_PATH).read_text())
         self.assertEqual(set(bot_module.MEDIA_ALIASES), set(manifest))
-        self.assertEqual(len(bot_module.MEDIA_ALIASES), 14)
+        self.assertEqual(len(bot_module.MEDIA_ALIASES), 11)
         for alias in bot_module.MEDIA_ALIASES:
             self.assertTrue(alias.startswith("iroh-"), alias)
+
+    def test_media_pools_keep_escalations_to_calm_gifs(self):
+        """TC-06-05B: Every message type has its own GIF pool; escalations only get the calm ones"""
+        pools = bot_module.MEDIA_POOLS
+        self.assertEqual(set(pools), {"daily_reminder", "daily_escalation", "weekly_reminder", "weekly_escalation"})
+        self.assertEqual(set().union(*pools.values()), set(bot_module.MEDIA_ALIASES))
+        calm = {"iroh-believe-in-yourself", "iroh-calming-tea", "iroh-tea-first", "iroh-tea-sip"}
+        self.assertEqual(set(pools["daily_escalation"]), calm)
+        self.assertEqual(set(pools["weekly_escalation"]), calm)
+        self.assertGreaterEqual(len(pools["daily_reminder"]), 10)
+        self.assertGreaterEqual(len(pools["weekly_reminder"]), 10)
 
     def test_opening_phrases_match_revised_copy(self):
         """TC-06-06: Opening phrases use the exact revised cool Slackbot copy"""
@@ -616,41 +627,36 @@ class TestPhrases(unittest.TestCase):
 
         expected = [
             "Good morning, nephews and nieces. Pour the tea, then share: yesterday, today, blockers.",
-            "The kettle is warm and the thread is open. Come, sit, tell your uncle how the work goes.",
-            "A good update is like good tea: not too long, not too weak.",
-            "Morning. Before the day begins, let us look at where we have been and where we are going.",
-            "Sharing your status is not a chore. It is how a team remembers itself.",
-            "The thread is open. Bring your progress, your plans, and the stones in your path.",
-            "Even the mightiest river starts as a few drops. Small updates count too.",
+            "The kettle is warm. Come, sit, and tell your uncle how the work goes.",
+            "The first update of the day gets the good jasmine.",
+            "Bring your plans, and bring the stones in your path. Someone here has probably moved that stone before.",
+            "No epic poems, please. Three honest lines will do.",
             "Tea is ready. So is the thread. Only one of them will wait for you until 13:00.",
-            "There is no shame in a stuck task, only in a silent one. If something is blocked, say so here.",
-            "Good morning. Life happens wherever you are — and standup happens right here.",
-            "A blocker shared before noon is half a blocker by lunch.",
+            "Stuck on something? Say so this morning, while there is still a whole day to fix it.",
             "Ah, a new day. Let us begin it the civilized way: with tea and a status update.",
-            "Do not rush the leaves, but do not forget the cup. Update before 13:00.",
-            "It is time to look inward — and then type outward. What moved, what is next, what is stuck?",
+            "Good tea takes time. A good update takes about two minutes.",
+            "It is time to look inward and ask yourself the big questions. Mainly: what did I do yesterday?",
             "Sometimes the best way to solve a problem is to tell your teammates about it.",
-            "The morning is quiet, the tea is jasmine, the thread is open.",
-            "Good morning, my friends. Hope is something you give yourself — a clear plan for today helps too.",
-            "A plan written down is a plan half done. Share yours here.",
-            "Open the thread, open the mind. Short and honest is the best flavor.",
-            "You must never give up when your ticket is hard. But you may ask for help here.",
-            "The tea is hot. The thread is open. Your uncle is listening.",
-            "Even a lost traveler can find the way if someone points. Name your blockers.",
-            "New day, fresh leaves. What did yesterday brew, and what will today?",
+            "Jasmine tea this morning, so your uncle is in a very good mood. Now is the time to mention blockers.",
+            "There is nothing wrong with letting the people who love you help you. Your teammates count, mostly.",
             "Welcome back to the tea shop. Today's specials: yesterday, today, blockers.",
+            "Your uncle slept through most of yesterday. What did he miss?",
+            "If yesterday went badly, write that too. Your uncle has had worse days, some of them in prison.",
+            "Yesterday's Today is today's Yesterday. Your uncle finds this very funny.",
+            "Post before 13:00 and your uncle will not have to come find you with a teapot.",
+            "Prince Zuko never wrote a standup, and look how his year went.",
         ]
         self.assertEqual(OPENING_PHRASES, expected)
 
     def test_reminder_and_thread_closed_copy_match_revised_proposal(self):
         """TC-06-07: Reminder and thread-closed copy uses exact revised strings"""
         self.assertEqual(bot_module.REMINDER_MESSAGES, (
-            "Hey {MENTIONS} — even the slowest tea leaf reaches the bottom of the cup. Please post your update here before 13:00: Yesterday, Today, and Blockers/Risks.",
-            "Hey {MENTIONS} — your uncle saved you a seat and a cup. The thread is still waiting on Yesterday, Today, and Blockers/Risks before 13:00.",
-            "Hey {MENTIONS} — no update from you yet. A few honest lines are enough: Yesterday, Today, and Blockers/Risks. Deadline: 13:00.",
-            "Hey {MENTIONS} — patience is a virtue, but the thread closes at 13:00. Reply here with Yesterday, Today, and Blockers/Risks.",
-            "Hey {MENTIONS} — the tea is getting cold. Steep your update here before 13:00: Yesterday, Today, and Blockers/Risks. 🍵",
-            "Hey {MENTIONS} — it is not shameful to be late, only to stay silent. Reply here before 13:00 with Yesterday, Today, and Blockers/Risks.",
+            "{MENTIONS}, there is still half an hour. Please reply here before 13:00 with Yesterday, Today, and Blockers/Risks.",
+            "Hey {MENTIONS}, your uncle saved you a seat and a cup. The thread is still waiting on Yesterday, Today, and Blockers/Risks before 13:00.",
+            "{MENTIONS}: no update from you yet. A few honest lines are enough: Yesterday, Today, and Blockers/Risks. Deadline: 13:00.",
+            "{MENTIONS}, your uncle is about to start a game of Pai Sho and would love to read your update first. Yesterday, Today, and Blockers/Risks, before 13:00.",
+            "{MENTIONS}, your tea is getting cold. Post Yesterday, Today, and Blockers/Risks here before 13:00. 🍵",
+            "{MENTIONS}, busy morning? Reply in this thread when you surface: Yesterday, Today, and Blockers/Risks, before 13:00.",
         ))
         self.assertEqual(bot_module.THREAD_CLOSED_MESSAGE, "The tea has gone cold. Thread closed.")
         self.assertNotIn("tomorrow", bot_module.THREAD_CLOSED_MESSAGE.casefold())
@@ -730,7 +736,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "⚠️ _Vacation Tracker is not answering today, so I do not know who is resting. We will not guess — the thread continues as usual._",
+            "⚠️ _Vacation Tracker is not answering today, so I do not know who is resting. I will not guess. The thread runs as usual._",
         )
 
     @patch('main.get_vacation_users', return_value={"U111"})
@@ -739,7 +745,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "🌴 *Resting today — confirmed by Vacation Tracker:* <@U111>\nA rested mind brews better tea. We'll keep the thread warm.",
+            "🌴 *Resting today (per Vacation Tracker):* <@U111>\nRest well. Your uncle highly recommends a nap.",
         )
 
     @patch('main.get_vacation_users', return_value=set())
@@ -748,7 +754,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "*Full team today:* Vacation Tracker reports no absences. A full table — let's keep the status moving.",
+            "*Full team today:* Vacation Tracker reports no absences. A full table. Your uncle will need more cups.",
         )
 
     @patch('main.send_alert')
@@ -843,7 +849,7 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
 
         mock_choice.assert_has_calls([
             call(bot_module.REMINDER_MESSAGES),
-            call(bot_module.MEDIA_ALIASES),
+            call(bot_module.MEDIA_POOLS["daily_reminder"]),
         ])
         self.mock_app.client.files_upload_v2.assert_called_once()
         self.assertEqual(
@@ -964,8 +970,8 @@ class TestEndOfDayEscalation(unittest.TestCase):
         self.assertEqual(call_kwargs['file'], str(Path(bot_module.__file__).parent / "assets/iroh/iroh-calming-tea.gif"))
         self.assertEqual(
             call_kwargs['initial_comment'],
-            "The day is ending, and <@U222> <@U333> still have no update in the active thread. "
-            "<@U068KKKNP9R>, perhaps a gentle word over tea?",
+            "The day is ending, and this thread still has no update from <@U222> <@U333>. "
+            "<@U068KKKNP9R>, letting you know. Tomorrow your uncle brews a fresh pot.",
         )
 
     @patch('main.random.choice', return_value="iroh-calming-tea")
@@ -983,8 +989,8 @@ class TestEndOfDayEscalation(unittest.TestCase):
             channel='C08UT7VP2TA',
             thread_ts="1234567890.123456",
             text=(
-                "The day is ending, and <@U222> <@U333> still have no update in the active thread. "
-                "<@U068KKKNP9R>, perhaps a gentle word over tea?"
+                "The day is ending, and this thread still has no update from <@U222> <@U333>. "
+                "<@U068KKKNP9R>, letting you know. Tomorrow your uncle brews a fresh pot."
             ),
         )
 
@@ -1947,8 +1953,8 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.assertEqual(call_kwargs['thread_ts'], bot_module.weekly_thread_ts)
         self.assertEqual(
             call_kwargs['initial_comment'],
-            "The week is ending, and <@U333> still have no weekly update in this thread. "
-            "<@U068KKKNP9R>, perhaps a gentle word over tea?",
+            "The week is ending, and this thread still has no weekly update from <@U333>. "
+            "<@U068KKKNP9R>, letting you know.",
         )
 
     # --- the daily thread is optional only while the weekly one is live ------

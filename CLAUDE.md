@@ -70,7 +70,7 @@ While the weekly thread is live, the daily jobs at 09:15, 12:30 and 21:00 return
 **Key data flows:**
 1. `post_daily_thread()` posts the standup prompt to `CHANNEL_ID`, saves the returned thread `ts` to `daily_thread_ts` global and the `bot_state` Supabase table so it survives restarts.
 2. `handle_message_events()` listens for replies in that thread. Each persisted reply gets one random reaction from the approved 17-alias set. Subsequent replies from the same user on the same day are appended to the existing record.
-3. `check_missing_reports()` queries `standup_reports` for today's date, cross-references `TEAM_USER_IDS` and vacation data, then uploads one of the 14 manifest-backed local Uncle Iroh GIFs with the reminder in-thread, falling back to text if the upload fails.
+3. `check_missing_reports()` queries `standup_reports` for today's date, cross-references `TEAM_USER_IDS` and vacation data, then uploads one of the reminder-pool Uncle Iroh GIFs with the reminder in-thread, falling back to text if the upload fails.
 4. `post_end_of_day_escalation()` does the same check but pings the CEO (`U068KKKNP9R`) if anyone is still missing.
 5. `post_weekly_thread()` posts a standalone message (not a reply), stores its `ts` in the `weekly_thread_ts` global and the `bot_state` table, then replies in the daily thread with a link to it. `handle_message_events()` routes replies by thread: daily → `standup_reports`, weekly → `weekly_reports`. Before posting into the weekly thread, each Friday job checks that the stored `ts` is from today, so a failed post never redirects pings into last week's thread.
 6. `get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves` with pagination, maps Vacation Tracker users to Slack IDs via `TEAM_MAPPING`, returns a set of absent UIDs or `"error"` on failure.
@@ -103,6 +103,6 @@ Deactivated Slack accounts are also skipped at runtime: `_missing_from()` calls 
 
 **Skipping reminders for a day:** Set `SKIP_TODAY=1` in Railway env vars. Important: `SKIP_TODAY=0` does NOT skip — only the value `"1"` does. Remove or set to `0` to resume normal operation.
 
-**Reaction/media aliases:** The runtime has 17 approved reaction aliases, all existing workspace custom emoji (checked against `emoji.list` on 2026-10-22). Reminder and escalation uploads pick from the 14 GIFs in `assets/iroh/manifest.json`. The bot speaks as Uncle Iroh (Avatar: The Last Airbender): warm, tea and proverbs, never shaming, and every actionable line still states what to do and by when.
+**Reaction/media aliases:** The runtime has 17 approved reaction aliases, all existing workspace custom emoji (checked against `emoji.list` on 2026-10-22). Reminder and escalation uploads pick from the 11 GIFs in `assets/iroh/manifest.json`; each GIF lists the message types it suits in `use` (`MEDIA_POOLS`), and escalations that ping the CEO only get the four calm tea GIFs. The bot speaks as Uncle Iroh (Avatar: The Last Airbender): warm, tea and proverbs, never shaming, and every actionable line still states what to do and by when.
 
 **Test lines:** The two calls at the end of `main()` (`post_daily_thread()` / `check_missing_reports()`) are test/dry-run lines — comment them out for normal production operation.
