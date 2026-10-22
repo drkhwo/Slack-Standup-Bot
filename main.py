@@ -107,42 +107,47 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 REACTION_ALIASES = (
-    "flow-state",
-    "monkey-business",
-    "investigating",
-    "tired-monke",
-    "together-4",
-    "enough-for-today",
-    "stop-nerding",
-    "ship-smth",
-    "mvp",
-    "mvp-2",
-    "together-3",
-    "together-5",
-    "pink-monke",
-    "monkey-zen",
-    "omg-monkey",
-    "matrix-code",
-    "matrix-monitors",
+    "tea-pause",
+    "meow_bow",
+    "chefkiss",
+    "catjam",
+    "party-parrot",
+    "deployparrot",
+    "meow_salute",
+    "meow_cheer",
+    "doggo-happy",
+    "impressive-very-nice",
+    "blob-hearts",
+    "dance-vibe",
+    "keanu-thanks",
+    "chill-guy",
+    "eevee-cheering",
+    "thumbs-up-cat",
+    "goodgood",
 )
 
-MEDIA_MANIFEST_PATH = Path(__file__).resolve().parent / "assets" / "monkey-business" / "manifest.json"
+MEDIA_MANIFEST_PATH = Path(__file__).resolve().parent / "assets" / "iroh" / "manifest.json"
 with MEDIA_MANIFEST_PATH.open(encoding="utf-8") as manifest_file:
     MEDIA_MANIFEST = json.load(manifest_file)
 MEDIA_ALIASES = tuple(MEDIA_MANIFEST)
+# Each GIF lists the message types it suits, so a sleepy or giggling Iroh never lands next to a CEO ping.
+MEDIA_POOLS = {
+    kind: tuple(alias for alias, entry in MEDIA_MANIFEST.items() if kind in entry["use"])
+    for kind in ("daily_reminder", "daily_escalation", "weekly_reminder", "weekly_escalation")
+}
 
 REMINDER_MESSAGES = (
-    "Hey {MENTIONS} — your standup update is still missing. Reply in this thread with Yesterday, Today, and Blockers/Risks before 13:00.",
-    "Hey {MENTIONS} — quick nudge: the thread is still waiting on Yesterday, Today, and Blockers/Risks. Please post before 13:00.",
-    "Hey {MENTIONS} — no update from you yet. Add Yesterday, Today, and Blockers/Risks here before 13:00.",
-    "Hey {MENTIONS} — the thread is missing your update. Keep it brief: Yesterday, Today, Blockers/Risks. Deadline: 13:00.",
-    "Hey {MENTIONS} — make the status visible. Reply here with Yesterday, Today, and Blockers/Risks before 13:00. 🐒",
-    "Hey {MENTIONS} — support your local monkey business and drop your update here before 13:00: Yesterday, Today, and Blockers/Risks.",
+    "{MENTIONS}, there is still half an hour. Please reply here before 13:00 with Yesterday, Today, and Blockers/Risks.",
+    "Hey {MENTIONS}, your uncle saved you a seat and a cup. The thread is still waiting on Yesterday, Today, and Blockers/Risks before 13:00.",
+    "{MENTIONS}: no update from you yet. A few honest lines are enough: Yesterday, Today, and Blockers/Risks. Deadline: 13:00.",
+    "{MENTIONS}, your uncle is about to start a game of Pai Sho and would love to read your update first. Yesterday, Today, and Blockers/Risks, before 13:00.",
+    "{MENTIONS}, your tea is getting cold. Post Yesterday, Today, and Blockers/Risks here before 13:00. 🍵",
+    "{MENTIONS}, busy morning? Reply in this thread when you surface: Yesterday, Today, and Blockers/Risks, before 13:00.",
 )
 
-THREAD_CLOSED_MESSAGE = "DDL passed. Thread closed."
+THREAD_CLOSED_MESSAGE = "The tea has gone cold. Thread closed."
 
-FRIDAY_THREAD_CLOSED_SUFFIX = " The weekly update thread stays open until 18:00."
+FRIDAY_THREAD_CLOSED_SUFFIX = " The weekly thread stays open until 18:00, so there is time for one more cup."
 
 WEEKLY_THREAD_TEXT = (
     "<!subteam^SF3F5Q5V5>\n\n"
@@ -158,16 +163,16 @@ WEEKLY_THREAD_TEXT = (
 
 WEEKLY_DAILY_POINTER = (
     "The weekly update thread is up: <{THREAD_LINK}|post your week there>. "
-    "That one is mandatory today; this daily thread is optional."
+    "That one is mandatory today. This daily thread is optional, a second cup if you want one."
 )
 
 WEEKLY_REMINDER_MESSAGE = (
-    "Hey {MENTIONS} — your weekly update is still missing. Reply in this thread before 18:00: "
+    "{MENTIONS}, the week is nearly over and your weekly update is still missing. Reply in this thread before 18:00: "
     "what you got done this week, plus a candid line of reflection. "
-    "If you already posted it in the daily thread by mistake, just repost it here."
+    "Already posted it in the daily thread by mistake? Just repost it here."
 )
 
-WEEKLY_THREAD_CLOSED_MESSAGE = "Weekly thread closed. This is the record for the week — thanks, everyone."
+WEEKLY_THREAD_CLOSED_MESSAGE = "Weekly thread closed. Thank you, everyone. Rest well this weekend; your uncle certainly will."
 
 
 def _weekly_enabled():
@@ -484,7 +489,7 @@ def post_daily_thread():
     
     try:
         standup_text = (
-            f"{phrase} <!subteam^SF3F5Q5V5> 🍌\n\n"
+            f"{phrase} <!subteam^SF3F5Q5V5> 🍵\n\n"
             "*Daily status thread*\n"
             "*Reply in the active thread before 13:00 with:*\n"
             "*Yesterday:* what shipped or merged. If this continues yesterday's work, quote your previous update and add the current status.\n"
@@ -520,20 +525,20 @@ def post_daily_thread():
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="⚠️ _Vacation Tracker is unavailable, so today's leave status is unknown. Monkey Business continues, but we will not guess who is out._"
+                text="⚠️ _Vacation Tracker is not answering today, so I do not know who is resting. I will not guess. The thread runs as usual._"
             )
         elif vacations:
             mentions = ", ".join([f"<@{uid}>" for uid in vacations])
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text=f"🌴 *Out today — confirmed by Vacation Tracker:* {mentions}\nEnjoy the PTO. We'll keep the status thread moving."
+                text=f"🌴 *Resting today (per Vacation Tracker):* {mentions}\nRest well. Your uncle highly recommends a nap."
             )
         else:
             app.client.chat_postMessage(
                 channel=CHANNEL_ID,
                 thread_ts=daily_thread_ts,
-                text="*Full team today:* Vacation Tracker reports no absences. Let's keep the status moving."
+                text="*Full team today:* Vacation Tracker reports no absences. A full table. Your uncle will need more cups."
             )
             
     except Exception as e:
@@ -559,7 +564,7 @@ def check_missing_reports():
         if missing_users:
             mentions = " ".join([f"<@{uid}>" for uid in missing_users])
             message = random.choice(REMINDER_MESSAGES).replace("{MENTIONS}", mentions)
-            _upload_thread_media_or_text(message, random.choice(MEDIA_ALIASES))
+            _upload_thread_media_or_text(message, random.choice(MEDIA_POOLS["daily_reminder"]))
             logger.info(f"Reminded missing users: {missing_users}")
             send_alert(f"Standup reminder sent to {len(missing_users)} missing reporter(s).")
         else:
@@ -612,11 +617,11 @@ def post_end_of_day_escalation():
 
         mentions = " ".join([f"<@{uid}>" for uid in missing_users])
         text = (
-            f"End-of-day check: {mentions} still have no update in the active thread. "
-            f"<@U068KKKNP9R>, please take a look."
+            f"The day is ending, and this thread still has no update from {mentions}. "
+            f"<@U068KKKNP9R>, letting you know. Tomorrow your uncle brews a fresh pot."
         )
 
-        _upload_thread_media_or_text(text, random.choice(MEDIA_ALIASES))
+        _upload_thread_media_or_text(text, random.choice(MEDIA_POOLS["daily_escalation"]))
         logger.info(f"End-of-day escalation sent for missing users: {missing_users}")
     except Exception as e:
         logger.error(f"Error posting end-of-day escalation: {e}")
@@ -693,7 +698,7 @@ def check_missing_weekly_reports():
         if missing_users:
             mentions = " ".join([f"<@{uid}>" for uid in missing_users])
             message = WEEKLY_REMINDER_MESSAGE.replace("{MENTIONS}", mentions)
-            _upload_thread_media_or_text(message, random.choice(MEDIA_ALIASES), thread_ts=weekly_thread_ts)
+            _upload_thread_media_or_text(message, random.choice(MEDIA_POOLS["weekly_reminder"]), thread_ts=weekly_thread_ts)
             logger.info(f"Reminded missing weekly reporters: {missing_users}")
             send_alert(f"Weekly reminder sent to {len(missing_users)} missing reporter(s).")
         else:
@@ -746,11 +751,11 @@ def post_weekly_escalation():
 
         mentions = " ".join([f"<@{uid}>" for uid in missing_users])
         text = (
-            f"End-of-week check: {mentions} still have no weekly update in this thread. "
-            f"<@U068KKKNP9R>, please take a look."
+            f"The week is ending, and this thread still has no weekly update from {mentions}. "
+            f"<@U068KKKNP9R>, letting you know."
         )
 
-        _upload_thread_media_or_text(text, random.choice(MEDIA_ALIASES), thread_ts=weekly_thread_ts)
+        _upload_thread_media_or_text(text, random.choice(MEDIA_POOLS["weekly_escalation"]), thread_ts=weekly_thread_ts)
         logger.info(f"Weekly escalation sent for missing users: {missing_users}")
     except Exception as e:
         logger.error(f"Error posting weekly escalation: {e}")
@@ -808,12 +813,12 @@ def send_personal_standup_reminder():
 
         if today_section:
             text = (
-                "Quick nudge: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
+                "A gentle nudge from your uncle: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
                 f"*Yesterday's plan for Today:*\n>{today_section}"
             )
         else:
             text = (
-                "Quick nudge: your standup update is still missing. I couldn't isolate yesterday's Today section, so here's the full previous post. "
+                "A gentle nudge from your uncle: your standup update is still missing. I couldn't find yesterday's Today section, so here is your full previous post. "
                 "Please reply in today's active thread before 13:00.\n\n"
                 f"*Full previous post:*\n>{raw_text[:300]}"
             )
@@ -906,7 +911,7 @@ def send_deploy_notification():
     if os.environ.get("DEPLOY_NOTIFY") != "1":
         return
     send_alert(
-        "🚀 Standup bot is back online.\n"
+        "🍵 Uncle Iroh is back from his tea break.\n"
         "Mode: *Standup collection*."
     )
     logger.info("Deploy notification sent.")

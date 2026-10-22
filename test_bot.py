@@ -461,7 +461,7 @@ class TestHandleMessageEvents(unittest.TestCase):
         self.assertEqual(insert_data['raw_text'], "Yesterday did X, today will do Y")
         self.assertEqual(insert_data['date'], date.today().isoformat())
 
-    @patch('main.random.choice', return_value='flow-state')
+    @patch('main.random.choice', return_value='tea-pause')
     def test_adds_random_approved_reaction_after_saving(self, mock_choice):
         """TC-05-02: An approved random reaction is added after saving"""
         body = {"event": {
@@ -474,7 +474,7 @@ class TestHandleMessageEvents(unittest.TestCase):
         mock_choice.assert_called_once_with(bot_module.REACTION_ALIASES)
         self.mock_app.client.reactions_add.assert_called_once_with(
             channel='C08UT7VP2TA',
-            name="flow-state",
+            name="tea-pause",
             timestamp="9999999999.000001"
         )
 
@@ -592,75 +592,73 @@ class TestPhrases(unittest.TestCase):
             self.assertTrue(len(phrase.strip()) > 0)
 
     def test_reaction_aliases_match_approved_manifest_aliases(self):
-        """TC-06-04: Reaction aliases are exactly the approved 17 aliases"""
+        """TC-06-04: Reaction aliases are exactly the approved 17 workspace emoji"""
         expected = {
-            "flow-state", "monkey-business", "investigating", "tired-monke",
-            "together-4", "enough-for-today", "stop-nerding", "ship-smth",
-            "mvp", "mvp-2", "together-3", "together-5", "pink-monke",
-            "monkey-zen", "omg-monkey", "matrix-code", "matrix-monitors",
+            "tea-pause", "meow_bow", "chefkiss", "catjam", "party-parrot",
+            "deployparrot", "meow_salute", "meow_cheer", "doggo-happy",
+            "impressive-very-nice", "blob-hearts", "dance-vibe", "keanu-thanks",
+            "chill-guy", "eevee-cheering", "thumbs-up-cat", "goodgood",
         }
         self.assertEqual(set(bot_module.REACTION_ALIASES), expected)
         self.assertEqual(len(bot_module.REACTION_ALIASES), 17)
 
     def test_media_aliases_are_manifest_backed_and_exclude_reaction_only_aliases(self):
-        """TC-06-05: Media selection uses the 12 manifest assets with valid aliases"""
+        """TC-06-05: Media selection uses the 11 Iroh manifest assets"""
         manifest = json.loads(Path(bot_module.MEDIA_MANIFEST_PATH).read_text())
         self.assertEqual(set(bot_module.MEDIA_ALIASES), set(manifest))
-        self.assertEqual(len(bot_module.MEDIA_ALIASES), 12)
-        self.assertIn("ship-smth", bot_module.MEDIA_ALIASES)
-        self.assertNotIn("ship", bot_module.MEDIA_ALIASES)
-        self.assertTrue(
-            {
-                "pink-monke", "monkey-zen", "omg-monkey",
-                "matrix-code", "matrix-monitors",
-            }.isdisjoint(bot_module.MEDIA_ALIASES)
-        )
+        self.assertEqual(len(bot_module.MEDIA_ALIASES), 11)
+        for alias in bot_module.MEDIA_ALIASES:
+            self.assertTrue(alias.startswith("iroh-"), alias)
+
+    def test_media_pools_keep_escalations_to_calm_gifs(self):
+        """TC-06-05B: Every message type has its own GIF pool; escalations only get the calm ones"""
+        pools = bot_module.MEDIA_POOLS
+        self.assertEqual(set(pools), {"daily_reminder", "daily_escalation", "weekly_reminder", "weekly_escalation"})
+        self.assertEqual(set().union(*pools.values()), set(bot_module.MEDIA_ALIASES))
+        calm = {"iroh-believe-in-yourself", "iroh-calming-tea", "iroh-tea-first", "iroh-tea-sip"}
+        self.assertEqual(set(pools["daily_escalation"]), calm)
+        self.assertEqual(set(pools["weekly_escalation"]), calm)
+        self.assertGreaterEqual(len(pools["daily_reminder"]), 10)
+        self.assertGreaterEqual(len(pools["weekly_reminder"]), 10)
 
     def test_opening_phrases_match_revised_copy(self):
         """TC-06-06: Opening phrases use the exact revised cool Slackbot copy"""
         from phrases import OPENING_PHRASES
 
         expected = [
-            "Morning. Standup is open — keep it short, useful, and on the record.",
-            "New day, same thread. What shipped, what is next, and what is in the way?",
-            "Status window open. Facts first; side quests in subthreads.",
-            "Standup is live. Drop the signal, skip the director's cut.",
-            "Quick status check: done, next, blocked.",
-            "The thread is live. Bring updates, not suspense.",
-            "Morning sync starts here. If the plan changed, write it down.",
-            "Standup is open. Keep it sharp and actionable.",
-            "What shipped? What's next? What needs a hand?",
-            "Daily status thread is live. Give us the useful version.",
-            "No mystery, just status: yesterday, today, blockers.",
-            "Status check-in is open. Concise is a feature.",
-            "Thread unlocked. ETA changes and blockers belong here.",
-            "Keep it factual, keep it moving, keep the blockers visible.",
-            "13:00 is the deadline. The thread is the source of truth.",
-            "One thread, three questions: yesterday, today, blockers.",
-            "Standup is live. Keep the status here; move the debate to subthreads.",
-            "Drop the update while it is still fresh.",
-            "Monkey see, monkey do: make the status visible. 🐒",
-            "Support your local monkey business: post the update before 13:00. 🐒",
-            "Low battery, high signal. Drop the useful version.",
-            "Case file open: what shipped, what is next, what is stuck?",
-            "Ship check: what moved, what is next, what is stuck?",
-            "Flow state starts with a clean status.",
-            "Monkey business, minus the mystery.",
-            "Need a quick win? Start with the status.",
+            "Good morning, nephews and nieces. Pour the tea, then share: yesterday, today, blockers.",
+            "The kettle is warm. Come, sit, and tell your uncle how the work goes.",
+            "The first update of the day gets the good jasmine.",
+            "Bring your plans, and bring the stones in your path. Someone here has probably moved that stone before.",
+            "No epic poems, please. Three honest lines will do.",
+            "Tea is ready. So is the thread. Only one of them will wait for you until 13:00.",
+            "Stuck on something? Say so this morning, while there is still a whole day to fix it.",
+            "Ah, a new day. Let us begin it the civilized way: with tea and a status update.",
+            "Good tea takes time. A good update takes about two minutes.",
+            "It is time to look inward and ask yourself the big questions. Mainly: what did I do yesterday?",
+            "Sometimes the best way to solve a problem is to tell your teammates about it.",
+            "Jasmine tea this morning, so your uncle is in a very good mood. Now is the time to mention blockers.",
+            "There is nothing wrong with letting the people who love you help you. Your teammates count, mostly.",
+            "Welcome back to the tea shop. Today's specials: yesterday, today, blockers.",
+            "Your uncle slept through most of yesterday. What did he miss?",
+            "If yesterday went badly, write that too. Your uncle has had worse days, some of them in prison.",
+            "Yesterday's Today is today's Yesterday. Your uncle finds this very funny.",
+            "Post before 13:00 and your uncle will not have to come find you with a teapot.",
+            "Prince Zuko never wrote a standup, and look how his year went.",
         ]
         self.assertEqual(OPENING_PHRASES, expected)
 
     def test_reminder_and_thread_closed_copy_match_revised_proposal(self):
         """TC-06-07: Reminder and thread-closed copy uses exact revised strings"""
         self.assertEqual(bot_module.REMINDER_MESSAGES, (
-            "Hey {MENTIONS} — your standup update is still missing. Reply in this thread with Yesterday, Today, and Blockers/Risks before 13:00.",
-            "Hey {MENTIONS} — quick nudge: the thread is still waiting on Yesterday, Today, and Blockers/Risks. Please post before 13:00.",
-            "Hey {MENTIONS} — no update from you yet. Add Yesterday, Today, and Blockers/Risks here before 13:00.",
-            "Hey {MENTIONS} — the thread is missing your update. Keep it brief: Yesterday, Today, Blockers/Risks. Deadline: 13:00.",
-            "Hey {MENTIONS} — make the status visible. Reply here with Yesterday, Today, and Blockers/Risks before 13:00. 🐒",
-            "Hey {MENTIONS} — support your local monkey business and drop your update here before 13:00: Yesterday, Today, and Blockers/Risks.",
+            "{MENTIONS}, there is still half an hour. Please reply here before 13:00 with Yesterday, Today, and Blockers/Risks.",
+            "Hey {MENTIONS}, your uncle saved you a seat and a cup. The thread is still waiting on Yesterday, Today, and Blockers/Risks before 13:00.",
+            "{MENTIONS}: no update from you yet. A few honest lines are enough: Yesterday, Today, and Blockers/Risks. Deadline: 13:00.",
+            "{MENTIONS}, your uncle is about to start a game of Pai Sho and would love to read your update first. Yesterday, Today, and Blockers/Risks, before 13:00.",
+            "{MENTIONS}, your tea is getting cold. Post Yesterday, Today, and Blockers/Risks here before 13:00. 🍵",
+            "{MENTIONS}, busy morning? Reply in this thread when you surface: Yesterday, Today, and Blockers/Risks, before 13:00.",
         ))
-        self.assertEqual(bot_module.THREAD_CLOSED_MESSAGE, "DDL passed. Thread closed.")
+        self.assertEqual(bot_module.THREAD_CLOSED_MESSAGE, "The tea has gone cold. Thread closed.")
         self.assertNotIn("tomorrow", bot_module.THREAD_CLOSED_MESSAGE.casefold())
 
     def test_refreshed_copy_avoids_repeated_or_corporate_wording(self):
@@ -673,7 +671,7 @@ class TestPhrases(unittest.TestCase):
         )
         self.assertNotIn("paper trail", source.casefold())
         self.assertNotIn("chaos organized", source.casefold())
-        self.assertEqual(source.count("🐒"), 3)
+        self.assertEqual(source.count("🐒"), 0)
 
 
 # ---------------------------------------------------------
@@ -706,7 +704,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         self.assertIn("Daily", first_call_kwargs['text'])
 
     @patch('main.get_vacation_users', return_value=set())
-    def test_standup_text_uses_exact_monkey_business_contract(self, mock_vacation):
+    def test_standup_text_uses_exact_daily_contract(self, mock_vacation):
         """TC-07-02A: Daily instructions and mentions use the approved copy"""
         bot_module.post_daily_thread()
         text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
@@ -722,13 +720,13 @@ class TestPostDailyThreadExtended(unittest.TestCase):
 
     @patch('main.get_opening_phrase', return_value="Status window open. Facts first; side quests in subthreads.")
     @patch('main.get_vacation_users', return_value=set())
-    def test_standup_intro_has_one_fixed_banana_after_team_mentions(self, mock_vacation, mock_opening):
-        """TC-07-02F: The opening post contains one predictable banana marker."""
+    def test_standup_intro_has_one_fixed_tea_after_team_mentions(self, mock_vacation, mock_opening):
+        """TC-07-02F: The opening post contains one predictable tea marker."""
         bot_module.post_daily_thread()
         text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
-        self.assertEqual(text.count("🍌"), 1)
+        self.assertEqual(text.count("🍵"), 1)
         self.assertIn(
-            "<!subteam^SF3F5Q5V5> 🍌",
+            "<!subteam^SF3F5Q5V5> 🍵",
             text,
         )
 
@@ -738,7 +736,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "⚠️ _Vacation Tracker is unavailable, so today's leave status is unknown. Monkey Business continues, but we will not guess who is out._",
+            "⚠️ _Vacation Tracker is not answering today, so I do not know who is resting. I will not guess. The thread runs as usual._",
         )
 
     @patch('main.get_vacation_users', return_value={"U111"})
@@ -747,7 +745,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "🌴 *Out today — confirmed by Vacation Tracker:* <@U111>\nEnjoy the PTO. We'll keep the status thread moving.",
+            "🌴 *Resting today (per Vacation Tracker):* <@U111>\nRest well. Your uncle highly recommends a nap.",
         )
 
     @patch('main.get_vacation_users', return_value=set())
@@ -756,7 +754,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "*Full team today:* Vacation Tracker reports no absences. Let's keep the status moving.",
+            "*Full team today:* Vacation Tracker reports no absences. A full table. Your uncle will need more cups.",
         )
 
     @patch('main.send_alert')
@@ -809,7 +807,7 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         bot_module.CHANNEL_ID = 'C08UT7VP2TA'
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
-    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "flow-state"])
+    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "iroh-tea-sip"])
     @patch('main.get_vacation_users', return_value=set())
     def test_reminder_message_is_concise_and_actionable(self, mock_vacation, mock_choice):
         """TC-08-01: Reminder is concise, actionable, and deadline-aware"""
@@ -839,7 +837,7 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         self.assertIn("Blockers/Risks", reminder_text)
 
     @patch('main.send_alert')
-    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "flow-state"])
+    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "iroh-tea-sip"])
     @patch('main.get_vacation_users', return_value=set())
     def test_reminder_uses_separate_media_alias_selection(self, mock_vacation, mock_choice, mock_alert):
         """TC-08-02A: Reminder media selection is separate from reaction-only aliases"""
@@ -851,7 +849,7 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
 
         mock_choice.assert_has_calls([
             call(bot_module.REMINDER_MESSAGES),
-            call(bot_module.MEDIA_ALIASES),
+            call(bot_module.MEDIA_POOLS["daily_reminder"]),
         ])
         self.mock_app.client.files_upload_v2.assert_called_once()
         self.assertEqual(
@@ -901,7 +899,7 @@ class TestNotificationAssets(unittest.TestCase):
 
     def test_all_manifest_assets_exist_and_have_no_runtime_mp4(self):
         """TC-08-05: Every manifest asset exists and runtime paths are GIF/PNG only."""
-        manifest_path = self.ROOT / "assets" / "monkey-business" / "manifest.json"
+        manifest_path = self.ROOT / "assets" / "iroh" / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
         self.assertEqual(set(manifest), set(bot_module.MEDIA_ALIASES))
         for entry in manifest.values():
@@ -921,12 +919,12 @@ class TestNotificationAssets(unittest.TestCase):
     def test_docker_image_copies_runtime_assets(self):
         """TC-08-07: The Docker image includes the local media directory."""
         dockerfile = (self.ROOT / "Dockerfile").read_text()
-        self.assertIn("COPY assets/monkey-business ./assets/monkey-business", dockerfile)
+        self.assertIn("COPY assets/iroh ./assets/iroh", dockerfile)
 
     def test_docker_context_keeps_media_manifest(self):
         """TC-08-08: The Docker context does not exclude the runtime manifest."""
         dockerignore = (self.ROOT / ".dockerignore").read_text()
-        self.assertIn("!assets/monkey-business/manifest.json", dockerignore)
+        self.assertIn("!assets/iroh/manifest.json", dockerignore)
 
     def test_rejected_identity_and_banana_copy_are_absent_from_project_files(self):
         """TC-08-09: Rejected identity and banana copy are absent from project-facing files."""
@@ -955,7 +953,7 @@ class TestEndOfDayEscalation(unittest.TestCase):
         bot_module.CHANNEL_ID = 'C08UT7VP2TA'
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_posts_when_users_are_missing(self, mock_vacation, mock_choice):
         """TC-08E-01: End-of-day escalation posts when users are still missing"""
@@ -969,14 +967,14 @@ class TestEndOfDayEscalation(unittest.TestCase):
         call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'C08UT7VP2TA')
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
-        self.assertEqual(call_kwargs['file'], str(Path(bot_module.__file__).parent / "assets/monkey-business/mvp.gif"))
+        self.assertEqual(call_kwargs['file'], str(Path(bot_module.__file__).parent / "assets/iroh/iroh-calming-tea.gif"))
         self.assertEqual(
             call_kwargs['initial_comment'],
-            "End-of-day check: <@U222> <@U333> still have no update in the active thread. "
-            "<@U068KKKNP9R>, please take a look.",
+            "The day is ending, and this thread still has no update from <@U222> <@U333>. "
+            "<@U068KKKNP9R>, letting you know. Tomorrow your uncle brews a fresh pot.",
         )
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_upload_failure_falls_back_to_text_only_thread_message(self, mock_vacation, mock_choice):
         """TC-08E-01A: Escalation upload failure preserves text in the same thread."""
@@ -991,8 +989,8 @@ class TestEndOfDayEscalation(unittest.TestCase):
             channel='C08UT7VP2TA',
             thread_ts="1234567890.123456",
             text=(
-                "End-of-day check: <@U222> <@U333> still have no update in the active thread. "
-                "<@U068KKKNP9R>, please take a look."
+                "The day is ending, and this thread still has no update from <@U222> <@U333>. "
+                "<@U068KKKNP9R>, letting you know. Tomorrow your uncle brews a fresh pot."
             ),
         )
 
@@ -1476,7 +1474,7 @@ class TestSendDeployNotification(unittest.TestCase):
         self.assertEqual(call_kwargs['channel'], 'C_ALERT')
         self.assertEqual(
             call_kwargs['text'],
-            "🚀 Standup bot is back online.\nMode: *Standup collection*.",
+            "🍵 Uncle Iroh is back from his tea break.\nMode: *Standup collection*.",
         )
 
     def test_skips_when_deploy_notify_not_set(self):
@@ -1547,13 +1545,13 @@ class TestThreadBoostsRemoved(unittest.TestCase):
         self._call_handler(self._standup_body())
         self.mock_app.client.chat_postMessage.assert_not_called()
 
-    @patch('main.random.choice', return_value='flow-state')
+    @patch('main.random.choice', return_value='tea-pause')
     def test_thread_reply_still_gets_confirmation_reaction(self, mock_choice):
         """TC-12-02: Standup replies still get the confirmation reaction"""
         self._call_handler(self._standup_body())
         self.mock_app.client.reactions_add.assert_called_once_with(
             channel='C08UT7VP2TA',
-            name="flow-state",
+            name="tea-pause",
             timestamp="9999999999.000001"
         )
 
@@ -1625,7 +1623,7 @@ class TestPersonalStandupReminder(unittest.TestCase):
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'U0821BRMJ4R')
         self.assertTrue(call_kwargs['text'].startswith(
-            "Quick nudge: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
+            "A gentle nudge from your uncle: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
         ))
         self.assertIn("*Yesterday's plan for Today:*", call_kwargs['text'])
         self.assertIn('ship feature Y', call_kwargs['text'])
@@ -1637,7 +1635,7 @@ class TestPersonalStandupReminder(unittest.TestCase):
         self.mock_app.client.chat_postMessage.assert_called_once()
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertIn(
-            "Quick nudge: your standup update is still missing. I couldn't isolate yesterday's Today section, so here's the full previous post.",
+            "A gentle nudge from your uncle: your standup update is still missing. I couldn't find yesterday's Today section, so here is your full previous post.",
             call_kwargs['text'],
         )
         self.assertIn('unstructured update', call_kwargs['text'])
@@ -1904,7 +1902,7 @@ class TestWeeklyUpdates(unittest.TestCase):
 
     # --- reminder, close, escalation ----------------------------------------
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_reminder_pings_missing_users_in_the_weekly_thread(self, mock_vacation, mock_choice):
         """TC-12-15: The 16:30 nudge lands in the weekly thread, not the daily one"""
@@ -1941,7 +1939,7 @@ class TestWeeklyUpdates(unittest.TestCase):
             text=bot_module.WEEKLY_THREAD_CLOSED_MESSAGE,
         )
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_escalation_pings_the_ceo(self, mock_vacation, mock_choice):
         """TC-12-18: Whoever is still missing at 18:30 is escalated to the CEO"""
@@ -1955,8 +1953,8 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.assertEqual(call_kwargs['thread_ts'], bot_module.weekly_thread_ts)
         self.assertEqual(
             call_kwargs['initial_comment'],
-            "End-of-week check: <@U333> still have no weekly update in this thread. "
-            "<@U068KKKNP9R>, please take a look.",
+            "The week is ending, and this thread still has no weekly update from <@U333>. "
+            "<@U068KKKNP9R>, letting you know.",
         )
 
     # --- the daily thread is optional only while the weekly one is live ------
@@ -1973,7 +1971,7 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.mock_app.client.files_upload_v2.assert_not_called()
         self.mock_app.client.chat_postMessage.assert_not_called()
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_failed_weekly_post_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
         """TC-12-20: If the weekly post never landed, Friday is not left without any nudge"""
@@ -1984,7 +1982,7 @@ class TestWeeklyUpdates(unittest.TestCase):
         call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_stale_weekly_thread_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
         """TC-12-21: Last week's thread does not make today's daily thread optional"""
@@ -1994,7 +1992,7 @@ class TestWeeklyUpdates(unittest.TestCase):
 
         self.mock_app.client.files_upload_v2.assert_called_once()
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_weekly_off_restores_the_daily_reminder(self, mock_vacation, mock_choice):
         """TC-12-22: WEEKLY_UPDATES=0 brings the daily pings back even on Friday"""

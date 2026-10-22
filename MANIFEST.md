@@ -47,7 +47,7 @@ Slack Socket Mode events
 - Loads today's reports from Supabase
 - Loads approved absences from Vacation Tracker
 - Excludes users on leave from reminder targeting
-- Uploads one of the 12 manifest-backed local Monkey Business GIF/PNG files with the reminder in the existing standup thread for anyone still missing
+- Uploads one of the reminder-pool Uncle Iroh GIFs with the reminder in the existing standup thread for anyone still missing
 - Falls back to a text-only thread reply if the Slack file upload fails
 
 ### End-of-day escalation
@@ -56,7 +56,7 @@ Slack Socket Mode events
 - Reuses the same missing-user calculation as the daytime reminders
 - Posts in the existing standup thread only when users are still missing
 - Tags only `@dk`
-- Uploads one of the 12 manifest-backed local Monkey Business GIF/PNG files for visibility
+- Uploads one of the four calm escalation-pool Uncle Iroh GIFs for visibility
 - Falls back to a text-only escalation if the Slack file upload fails
 
 ### Scheduling
@@ -129,8 +129,8 @@ Current verified suite size: `105` tests.
 - Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
 - The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Reminder and escalation media are selected from the checked-in manifest and uploaded directly to Slack.
-- The approved confirmation reactions are `flow-state`, `monkey-business`, `investigating`, `tired-monke`, `together-4`, `enough-for-today`, `stop-nerding`, `ship-smth`, `mvp`, `mvp-2`, `together-3`, `together-5`, `pink-monke`, `monkey-zen`, `omg-monkey`, `matrix-code`, and `matrix-monitors`.
-- Only the 12 aliases in `assets/monkey-business/manifest.json` are eligible for reminder and escalation media uploads.
+- The approved confirmation reactions are `tea-pause`, `meow_bow`, `chefkiss`, `catjam`, `party-parrot`, `deployparrot`, `meow_salute`, `meow_cheer`, `doggo-happy`, `impressive-very-nice`, `blob-hearts`, `dance-vibe`, `keanu-thanks`, `chill-guy`, `eevee-cheering`, `thumbs-up-cat`, and `goodgood`.
+- Only the 11 aliases in `assets/iroh/manifest.json` are eligible for media uploads, each limited to the message types in its `use` list.
 - End-of-day escalation stays in the standup thread and does not write to `ALERT_CHANNEL_ID`.
 
 ## Known limitations

@@ -1,0 +1,119 @@
+{
+  "iroh-believe-in-yourself": {
+    "path": "assets/iroh/iroh-believe-in-yourself.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "daily_escalation",
+      "weekly_reminder",
+      "weekly_escalation"
+    ]
+  },
+  "iroh-blush": {
+    "path": "assets/iroh/iroh-blush.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "weekly_reminder"
+    ]
+  },
+  "iroh-calming-tea": {
+    "path": "assets/iroh/iroh-calming-tea.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "daily_escalation",
+      "weekly_reminder",
+      "weekly_escalation"
+    ]
+  },
+  "iroh-feel-the-flow": {
+    "path": "assets/iroh/iroh-feel-the-flow.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "weekly_reminder"
+    ]
+  },
+  "iroh-noodles": {
+    "path": "assets/iroh/iroh-noodles.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder"
+    ]
+  },
+  "iroh-pai-sho-tea-offer": {
+    "path": "assets/iroh/iroh-pai-sho-tea-offer.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "weekly_reminder"
+    ]
+  },
+  "iroh-secret-ingredient-love": {
+    "path": "assets/iroh/iroh-secret-ingredient-love.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "weekly_reminder"
+    ]
+  },
+  "iroh-sharing-tea": {
+    "path": "assets/iroh/iroh-sharing-tea.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "weekly_reminder"
+    ]
+  },
+  "iroh-tea-first": {
+    "path": "assets/iroh/iroh-tea-first.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "daily_escalation",
+      "weekly_reminder",
+      "weekly_escalation"
+    ]
+  },
+  "iroh-tea-sip": {
+    "path": "assets/iroh/iroh-tea-sip.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "daily_escalation",
+      "weekly_reminder",
+      "weekly_escalation"
+    ]
+  },
+  "iroh-white-lotus-tile": {
+    "path": "assets/iroh/iroh-white-lotus-tile.gif",
+    "media_type": "image/gif",
+    "source_type": "gif",
+    "conversion": "resized and re-encoded as optimized GIF",
+    "use": [
+      "daily_reminder",
+      "weekly_reminder"
+    ]
+  }
+}
