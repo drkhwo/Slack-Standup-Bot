@@ -126,7 +126,7 @@ REACTION_ALIASES = (
     "matrix-monitors",
 )
 
-MEDIA_MANIFEST_PATH = Path(__file__).resolve().parent / "assets" / "monkey-business" / "manifest.json"
+MEDIA_MANIFEST_PATH = Path(__file__).resolve().parent / "assets" / "iroh" / "manifest.json"
 with MEDIA_MANIFEST_PATH.open(encoding="utf-8") as manifest_file:
     MEDIA_MANIFEST = json.load(manifest_file)
 MEDIA_ALIASES = tuple(MEDIA_MANIFEST)

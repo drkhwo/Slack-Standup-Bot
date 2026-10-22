@@ -8,7 +8,7 @@ dist/
 *.ts
 *.tsx
 *.json
-!assets/monkey-business/manifest.json
+!assets/iroh/manifest.json
 !pyproject.toml
 vite.config.ts
 drizzle.config.ts

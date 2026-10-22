@@ -603,18 +603,12 @@ class TestPhrases(unittest.TestCase):
         self.assertEqual(len(bot_module.REACTION_ALIASES), 17)
 
     def test_media_aliases_are_manifest_backed_and_exclude_reaction_only_aliases(self):
-        """TC-06-05: Media selection uses the 12 manifest assets with valid aliases"""
+        """TC-06-05: Media selection uses the 14 Iroh manifest assets"""
         manifest = json.loads(Path(bot_module.MEDIA_MANIFEST_PATH).read_text())
         self.assertEqual(set(bot_module.MEDIA_ALIASES), set(manifest))
-        self.assertEqual(len(bot_module.MEDIA_ALIASES), 12)
-        self.assertIn("ship-smth", bot_module.MEDIA_ALIASES)
-        self.assertNotIn("ship", bot_module.MEDIA_ALIASES)
-        self.assertTrue(
-            {
-                "pink-monke", "monkey-zen", "omg-monkey",
-                "matrix-code", "matrix-monitors",
-            }.isdisjoint(bot_module.MEDIA_ALIASES)
-        )
+        self.assertEqual(len(bot_module.MEDIA_ALIASES), 14)
+        for alias in bot_module.MEDIA_ALIASES:
+            self.assertTrue(alias.startswith("iroh-"), alias)
 
     def test_opening_phrases_match_revised_copy(self):
         """TC-06-06: Opening phrases use the exact revised cool Slackbot copy"""
@@ -807,7 +801,7 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         bot_module.CHANNEL_ID = 'C08UT7VP2TA'
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
-    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "flow-state"])
+    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "iroh-tea-sip"])
     @patch('main.get_vacation_users', return_value=set())
     def test_reminder_message_is_concise_and_actionable(self, mock_vacation, mock_choice):
         """TC-08-01: Reminder is concise, actionable, and deadline-aware"""
@@ -837,7 +831,7 @@ class TestCheckMissingReportsExtended(unittest.TestCase):
         self.assertIn("Blockers/Risks", reminder_text)
 
     @patch('main.send_alert')
-    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "flow-state"])
+    @patch('main.random.choice', side_effect=[bot_module.REMINDER_MESSAGES[0], "iroh-tea-sip"])
     @patch('main.get_vacation_users', return_value=set())
     def test_reminder_uses_separate_media_alias_selection(self, mock_vacation, mock_choice, mock_alert):
         """TC-08-02A: Reminder media selection is separate from reaction-only aliases"""
@@ -899,7 +893,7 @@ class TestNotificationAssets(unittest.TestCase):
 
     def test_all_manifest_assets_exist_and_have_no_runtime_mp4(self):
         """TC-08-05: Every manifest asset exists and runtime paths are GIF/PNG only."""
-        manifest_path = self.ROOT / "assets" / "monkey-business" / "manifest.json"
+        manifest_path = self.ROOT / "assets" / "iroh" / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
         self.assertEqual(set(manifest), set(bot_module.MEDIA_ALIASES))
         for entry in manifest.values():
@@ -919,12 +913,12 @@ class TestNotificationAssets(unittest.TestCase):
     def test_docker_image_copies_runtime_assets(self):
         """TC-08-07: The Docker image includes the local media directory."""
         dockerfile = (self.ROOT / "Dockerfile").read_text()
-        self.assertIn("COPY assets/monkey-business ./assets/monkey-business", dockerfile)
+        self.assertIn("COPY assets/iroh ./assets/iroh", dockerfile)
 
     def test_docker_context_keeps_media_manifest(self):
         """TC-08-08: The Docker context does not exclude the runtime manifest."""
         dockerignore = (self.ROOT / ".dockerignore").read_text()
-        self.assertIn("!assets/monkey-business/manifest.json", dockerignore)
+        self.assertIn("!assets/iroh/manifest.json", dockerignore)
 
     def test_rejected_identity_and_banana_copy_are_absent_from_project_files(self):
         """TC-08-09: Rejected identity and banana copy are absent from project-facing files."""
@@ -953,7 +947,7 @@ class TestEndOfDayEscalation(unittest.TestCase):
         bot_module.CHANNEL_ID = 'C08UT7VP2TA'
         bot_module.TEAM_USER_IDS = ["U111", "U222", "U333"]
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_posts_when_users_are_missing(self, mock_vacation, mock_choice):
         """TC-08E-01: End-of-day escalation posts when users are still missing"""
@@ -967,14 +961,14 @@ class TestEndOfDayEscalation(unittest.TestCase):
         call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'C08UT7VP2TA')
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
-        self.assertEqual(call_kwargs['file'], str(Path(bot_module.__file__).parent / "assets/monkey-business/mvp.gif"))
+        self.assertEqual(call_kwargs['file'], str(Path(bot_module.__file__).parent / "assets/iroh/iroh-calming-tea.gif"))
         self.assertEqual(
             call_kwargs['initial_comment'],
             "The day is ending, and <@U222> <@U333> still have no update in the active thread. "
             "<@U068KKKNP9R>, perhaps a gentle word over tea?",
         )
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_upload_failure_falls_back_to_text_only_thread_message(self, mock_vacation, mock_choice):
         """TC-08E-01A: Escalation upload failure preserves text in the same thread."""
@@ -1902,7 +1896,7 @@ class TestWeeklyUpdates(unittest.TestCase):
 
     # --- reminder, close, escalation ----------------------------------------
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_reminder_pings_missing_users_in_the_weekly_thread(self, mock_vacation, mock_choice):
         """TC-12-15: The 16:30 nudge lands in the weekly thread, not the daily one"""
@@ -1939,7 +1933,7 @@ class TestWeeklyUpdates(unittest.TestCase):
             text=bot_module.WEEKLY_THREAD_CLOSED_MESSAGE,
         )
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_escalation_pings_the_ceo(self, mock_vacation, mock_choice):
         """TC-12-18: Whoever is still missing at 18:30 is escalated to the CEO"""
@@ -1971,7 +1965,7 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.mock_app.client.files_upload_v2.assert_not_called()
         self.mock_app.client.chat_postMessage.assert_not_called()
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_failed_weekly_post_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
         """TC-12-20: If the weekly post never landed, Friday is not left without any nudge"""
@@ -1982,7 +1976,7 @@ class TestWeeklyUpdates(unittest.TestCase):
         call_kwargs = self.mock_app.client.files_upload_v2.call_args[1]
         self.assertEqual(call_kwargs['thread_ts'], "1234567890.123456")
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_stale_weekly_thread_keeps_the_daily_reminder(self, mock_vacation, mock_choice):
         """TC-12-21: Last week's thread does not make today's daily thread optional"""
@@ -1992,7 +1986,7 @@ class TestWeeklyUpdates(unittest.TestCase):
 
         self.mock_app.client.files_upload_v2.assert_called_once()
 
-    @patch('main.random.choice', return_value="mvp")
+    @patch('main.random.choice', return_value="iroh-calming-tea")
     @patch('main.get_vacation_users', return_value=set())
     def test_weekly_off_restores_the_daily_reminder(self, mock_vacation, mock_choice):
         """TC-12-22: WEEKLY_UPDATES=0 brings the daily pings back even on Friday"""
