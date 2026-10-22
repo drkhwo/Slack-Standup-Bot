@@ -621,46 +621,44 @@ class TestPhrases(unittest.TestCase):
         from phrases import OPENING_PHRASES
 
         expected = [
-            "Morning. Standup is open — keep it short, useful, and on the record.",
-            "New day, same thread. What shipped, what is next, and what is in the way?",
-            "Status window open. Facts first; side quests in subthreads.",
-            "Standup is live. Drop the signal, skip the director's cut.",
-            "Quick status check: done, next, blocked.",
-            "The thread is live. Bring updates, not suspense.",
-            "Morning sync starts here. If the plan changed, write it down.",
-            "Standup is open. Keep it sharp and actionable.",
-            "What shipped? What's next? What needs a hand?",
-            "Daily status thread is live. Give us the useful version.",
-            "No mystery, just status: yesterday, today, blockers.",
-            "Status check-in is open. Concise is a feature.",
-            "Thread unlocked. ETA changes and blockers belong here.",
-            "Keep it factual, keep it moving, keep the blockers visible.",
-            "13:00 is the deadline. The thread is the source of truth.",
-            "One thread, three questions: yesterday, today, blockers.",
-            "Standup is live. Keep the status here; move the debate to subthreads.",
-            "Drop the update while it is still fresh.",
-            "Monkey see, monkey do: make the status visible. 🐒",
-            "Support your local monkey business: post the update before 13:00. 🐒",
-            "Low battery, high signal. Drop the useful version.",
-            "Case file open: what shipped, what is next, what is stuck?",
-            "Ship check: what moved, what is next, what is stuck?",
-            "Flow state starts with a clean status.",
-            "Monkey business, minus the mystery.",
-            "Need a quick win? Start with the status.",
+            "Good morning, nephews and nieces. Pour the tea, then share: yesterday, today, blockers. 🍵",
+            "The kettle is warm and the thread is open. Come, sit, tell your uncle how the work goes.",
+            "A good update is like good tea: not too long, not too weak.",
+            "Morning. Before the day begins, let us look at where we have been and where we are going.",
+            "Sharing your status is not a chore. It is how a team remembers itself.",
+            "The thread is open. Bring your progress, your plans, and the stones in your path.",
+            "Even the mightiest river starts as a few drops. Small updates count too.",
+            "Tea is ready. So is the thread. Only one of them will wait for you until 13:00.",
+            "There is no shame in a stuck task, only in a silent one. If something is blocked, say so here.",
+            "Good morning. Life happens wherever you are — and standup happens right here.",
+            "A blocker shared before noon is half a blocker by lunch.",
+            "Ah, a new day. Let us begin it the civilized way: with tea and a status update.",
+            "Do not rush the leaves, but do not forget the cup. Update before 13:00.",
+            "It is time to look inward — and then type outward. What moved, what is next, what is stuck?",
+            "Sometimes the best way to solve a problem is to tell your teammates about it.",
+            "The morning is quiet, the tea is jasmine, the thread is open.",
+            "Good morning, my friends. Hope is something you give yourself — a clear plan for today helps too.",
+            "A plan written down is a plan half done. Share yours here.",
+            "Open the thread, open the mind. Short and honest is the best flavor.",
+            "You must never give up when your ticket is hard. But you may ask for help here.",
+            "The tea is hot. The thread is open. Your uncle is listening.",
+            "Even a lost traveler can find the way if someone points. Name your blockers.",
+            "New day, fresh leaves. What did yesterday brew, and what will today?",
+            "Welcome back to the tea shop. Today's specials: yesterday, today, blockers.",
         ]
         self.assertEqual(OPENING_PHRASES, expected)
 
     def test_reminder_and_thread_closed_copy_match_revised_proposal(self):
         """TC-06-07: Reminder and thread-closed copy uses exact revised strings"""
         self.assertEqual(bot_module.REMINDER_MESSAGES, (
-            "Hey {MENTIONS} — your standup update is still missing. Reply in this thread with Yesterday, Today, and Blockers/Risks before 13:00.",
-            "Hey {MENTIONS} — quick nudge: the thread is still waiting on Yesterday, Today, and Blockers/Risks. Please post before 13:00.",
-            "Hey {MENTIONS} — no update from you yet. Add Yesterday, Today, and Blockers/Risks here before 13:00.",
-            "Hey {MENTIONS} — the thread is missing your update. Keep it brief: Yesterday, Today, Blockers/Risks. Deadline: 13:00.",
-            "Hey {MENTIONS} — make the status visible. Reply here with Yesterday, Today, and Blockers/Risks before 13:00. 🐒",
-            "Hey {MENTIONS} — support your local monkey business and drop your update here before 13:00: Yesterday, Today, and Blockers/Risks.",
+            "Hey {MENTIONS} — even the slowest tea leaf reaches the bottom of the cup. Please post your update here before 13:00: Yesterday, Today, and Blockers/Risks.",
+            "Hey {MENTIONS} — your uncle saved you a seat and a cup. The thread is still waiting on Yesterday, Today, and Blockers/Risks before 13:00.",
+            "Hey {MENTIONS} — no update from you yet. A few honest lines are enough: Yesterday, Today, and Blockers/Risks. Deadline: 13:00.",
+            "Hey {MENTIONS} — patience is a virtue, but the thread closes at 13:00. Reply here with Yesterday, Today, and Blockers/Risks.",
+            "Hey {MENTIONS} — the tea is getting cold. Steep your update here before 13:00: Yesterday, Today, and Blockers/Risks. 🍵",
+            "Hey {MENTIONS} — it is not shameful to be late, only to stay silent. Reply here before 13:00 with Yesterday, Today, and Blockers/Risks.",
         ))
-        self.assertEqual(bot_module.THREAD_CLOSED_MESSAGE, "DDL passed. Thread closed.")
+        self.assertEqual(bot_module.THREAD_CLOSED_MESSAGE, "The tea has gone cold. Thread closed.")
         self.assertNotIn("tomorrow", bot_module.THREAD_CLOSED_MESSAGE.casefold())
 
     def test_refreshed_copy_avoids_repeated_or_corporate_wording(self):
@@ -673,7 +671,7 @@ class TestPhrases(unittest.TestCase):
         )
         self.assertNotIn("paper trail", source.casefold())
         self.assertNotIn("chaos organized", source.casefold())
-        self.assertEqual(source.count("🐒"), 3)
+        self.assertEqual(source.count("🐒"), 0)
 
 
 # ---------------------------------------------------------
@@ -706,7 +704,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         self.assertIn("Daily", first_call_kwargs['text'])
 
     @patch('main.get_vacation_users', return_value=set())
-    def test_standup_text_uses_exact_monkey_business_contract(self, mock_vacation):
+    def test_standup_text_uses_exact_daily_contract(self, mock_vacation):
         """TC-07-02A: Daily instructions and mentions use the approved copy"""
         bot_module.post_daily_thread()
         text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
@@ -722,13 +720,13 @@ class TestPostDailyThreadExtended(unittest.TestCase):
 
     @patch('main.get_opening_phrase', return_value="Status window open. Facts first; side quests in subthreads.")
     @patch('main.get_vacation_users', return_value=set())
-    def test_standup_intro_has_one_fixed_banana_after_team_mentions(self, mock_vacation, mock_opening):
-        """TC-07-02F: The opening post contains one predictable banana marker."""
+    def test_standup_intro_has_one_fixed_tea_after_team_mentions(self, mock_vacation, mock_opening):
+        """TC-07-02F: The opening post contains one predictable tea marker."""
         bot_module.post_daily_thread()
         text = self.mock_app.client.chat_postMessage.call_args_list[0][1]['text']
-        self.assertEqual(text.count("🍌"), 1)
+        self.assertEqual(text.count("🍵"), 1)
         self.assertIn(
-            "<!subteam^SF3F5Q5V5> 🍌",
+            "<!subteam^SF3F5Q5V5> 🍵",
             text,
         )
 
@@ -738,7 +736,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "⚠️ _Vacation Tracker is unavailable, so today's leave status is unknown. Monkey Business continues, but we will not guess who is out._",
+            "⚠️ _Vacation Tracker is not answering today, so I do not know who is resting. We will not guess — the thread continues as usual._",
         )
 
     @patch('main.get_vacation_users', return_value={"U111"})
@@ -747,7 +745,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "🌴 *Out today — confirmed by Vacation Tracker:* <@U111>\nEnjoy the PTO. We'll keep the status thread moving.",
+            "🌴 *Resting today — confirmed by Vacation Tracker:* <@U111>\nA rested mind brews better tea. We'll keep the thread warm.",
         )
 
     @patch('main.get_vacation_users', return_value=set())
@@ -756,7 +754,7 @@ class TestPostDailyThreadExtended(unittest.TestCase):
         bot_module.post_daily_thread()
         self.assertEqual(
             self.mock_app.client.chat_postMessage.call_args_list[1][1]['text'],
-            "*Full team today:* Vacation Tracker reports no absences. Let's keep the status moving.",
+            "*Full team today:* Vacation Tracker reports no absences. A full table — let's keep the status moving.",
         )
 
     @patch('main.send_alert')
@@ -972,8 +970,8 @@ class TestEndOfDayEscalation(unittest.TestCase):
         self.assertEqual(call_kwargs['file'], str(Path(bot_module.__file__).parent / "assets/monkey-business/mvp.gif"))
         self.assertEqual(
             call_kwargs['initial_comment'],
-            "End-of-day check: <@U222> <@U333> still have no update in the active thread. "
-            "<@U068KKKNP9R>, please take a look.",
+            "The day is ending, and <@U222> <@U333> still have no update in the active thread. "
+            "<@U068KKKNP9R>, perhaps a gentle word over tea?",
         )
 
     @patch('main.random.choice', return_value="mvp")
@@ -991,8 +989,8 @@ class TestEndOfDayEscalation(unittest.TestCase):
             channel='C08UT7VP2TA',
             thread_ts="1234567890.123456",
             text=(
-                "End-of-day check: <@U222> <@U333> still have no update in the active thread. "
-                "<@U068KKKNP9R>, please take a look."
+                "The day is ending, and <@U222> <@U333> still have no update in the active thread. "
+                "<@U068KKKNP9R>, perhaps a gentle word over tea?"
             ),
         )
 
@@ -1476,7 +1474,7 @@ class TestSendDeployNotification(unittest.TestCase):
         self.assertEqual(call_kwargs['channel'], 'C_ALERT')
         self.assertEqual(
             call_kwargs['text'],
-            "🚀 Standup bot is back online.\nMode: *Standup collection*.",
+            "🍵 Uncle Iroh is back from his tea break.\nMode: *Standup collection*.",
         )
 
     def test_skips_when_deploy_notify_not_set(self):
@@ -1625,7 +1623,7 @@ class TestPersonalStandupReminder(unittest.TestCase):
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertEqual(call_kwargs['channel'], 'U0821BRMJ4R')
         self.assertTrue(call_kwargs['text'].startswith(
-            "Quick nudge: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
+            "A gentle nudge from your uncle: your standup update is still missing. Please reply in today's active thread before 13:00.\n\n"
         ))
         self.assertIn("*Yesterday's plan for Today:*", call_kwargs['text'])
         self.assertIn('ship feature Y', call_kwargs['text'])
@@ -1637,7 +1635,7 @@ class TestPersonalStandupReminder(unittest.TestCase):
         self.mock_app.client.chat_postMessage.assert_called_once()
         call_kwargs = self.mock_app.client.chat_postMessage.call_args[1]
         self.assertIn(
-            "Quick nudge: your standup update is still missing. I couldn't isolate yesterday's Today section, so here's the full previous post.",
+            "A gentle nudge from your uncle: your standup update is still missing. I couldn't find yesterday's Today section, so here is your full previous post.",
             call_kwargs['text'],
         )
         self.assertIn('unstructured update', call_kwargs['text'])
@@ -1955,8 +1953,8 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.assertEqual(call_kwargs['thread_ts'], bot_module.weekly_thread_ts)
         self.assertEqual(
             call_kwargs['initial_comment'],
-            "End-of-week check: <@U333> still have no weekly update in this thread. "
-            "<@U068KKKNP9R>, please take a look.",
+            "The week is ending, and <@U333> still have no weekly update in this thread. "
+            "<@U068KKKNP9R>, perhaps a gentle word over tea?",
         )
 
     # --- the daily thread is optional only while the weekly one is live ------
