@@ -6,10 +6,8 @@ Before deploying, make sure the following are ready:
 
 1. A Railway account with access to the target project
 2. A Slack app with Socket Mode enabled
-3. A Supabase project with `standup_reports` created from `setup.sql`
-4. A `bot_state` table for storing `daily_thread_ts` and `weekly_thread_ts`
-5. A `weekly_reports` table for the Friday weekly updates — see [Supabase migration](#supabase-migration-weekly_reports)
-6. Repository access to this project
+3. A Postgres database with `standup_reports`, `weekly_reports` and `bot_state` created from `setup.sql` — see [Database](#database)
+4. Repository access to this project
 
 ## Required environment variables
 
@@ -18,8 +16,7 @@ Configure these in the Railway service:
 ```text
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_APP_TOKEN=xapp-your-app-token
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-key
+DATABASE_URL=postgresql://user:pass@host:5432/standup
 CHANNEL_ID=C1234567890
 ```
 
@@ -37,90 +34,15 @@ WEEKLY_UPDATES=0
 
 `DEPLOY_NOTIFY=1` is intended for a one-time deploy confirmation. Remove it after a successful deployment if you do not want deploy alerts on later restarts.
 
-## Supabase migration: `weekly_reports`
+## Database
 
-The Friday weekly-update thread stores replies in their own table. Without it the thread still posts and still closes at 18:01, but nothing is recorded **and the enforcement goes silent**: `get_missing_weekly_users()` raises `PGRST205` before it can fall back to reading the Slack thread, so the 16:30 reminder and the 18:30 escalation both log an error and return. Run this before merging the weekly-update change.
+The bot stores reports and thread state in Postgres, reached through one connection string, `DATABASE_URL` (see `get_supabase_client()` and `db.py`). `setup.sql` creates all three tables — `standup_reports`, `weekly_reports` and `bot_state`:
 
-### How the connection works
-
-The bot only ever talks to Supabase through two environment variables set on the Railway service, `SUPABASE_URL` and `SUPABASE_KEY` (see `get_supabase_client()` in `main.py`). There is no connection string, no pooler, and no migration tool in the loop — `supabase-py` calls the project's REST API over HTTPS. Nothing about the connection changes when you add a table; the new table just has to be reachable by the same key.
-
-That key is the project's **anon** key, not a service-role key. So the new table has to be readable and writable by the `anon` role, exactly like `standup_reports` is today. This is why the table must be created from the SQL editor.
-
-> **Do not create this table from the Table Editor UI.** The UI enables Row Level Security on new tables by default. With RLS on and no policies, reads silently return zero rows and writes fail — the bot keeps running and the breakage only shows up as missing data. `create table` from the SQL editor leaves RLS off, matching `standup_reports`.
-
-### Steps
-
-1. Open the Supabase dashboard for the project referenced by `SUPABASE_URL`, then **SQL Editor → New query**.
-
-2. Paste the `weekly_reports` block from `setup.sql`:
-
-   ```sql
-   create table weekly_reports (
-     id uuid default gen_random_uuid() primary key,
-     user_id text not null,
-     date date not null default current_date,
-     raw_text text not null,
-     thread_ts text not null,
-     created_at timestamp with time zone default timezone('utc'::text, now()) not null
-   );
-   ```
-
-3. Run it. Expected result: `Success. No rows returned`.
-
-4. Confirm the table is reachable with the key the bot actually uses. From the repo root, with the Railway CLI linked (`railway status` shows the `SlackBot` service), this borrows the deployed variables without ever writing them to disk:
-
-   ```bash
-   railway run python -c "
-   import os
-   from supabase import create_client
-   client = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_KEY'])
-   probe = {'user_id': 'PROBE', 'date': '1970-01-01', 'raw_text': 'probe', 'thread_ts': '0'}
-   client.table('weekly_reports').insert(probe).execute()
-   print('insert ok:', client.table('weekly_reports').select('*').eq('user_id', 'PROBE').execute().data)
-   client.table('weekly_reports').delete().eq('user_id', 'PROBE').execute()
-   print('after cleanup:', client.table('weekly_reports').select('*').eq('user_id', 'PROBE').execute().data)
-   "
-   ```
-
-   Expected: `insert ok:` prints one row, `after cleanup:` prints `[]`. A `PGRST205` means the table is not there (wrong project, or the query never ran). A `42501` or an empty `insert ok:` means RLS is on — see below.
-
-5. Deploy. `WEEKLY_UPDATES` does not need to be set: unset means active.
-
-### If RLS ended up enabled
-
-Either turn it off so the table matches `standup_reports`:
-
-```sql
-alter table weekly_reports disable row level security;
+```bash
+psql "$DATABASE_URL" -f setup.sql
 ```
 
-Or keep it on and grant the `anon` role what the bot needs — it inserts, selects, and updates rows:
-
-```sql
-alter table weekly_reports enable row level security;
-
-create policy "bot reads weekly reports" on weekly_reports
-  for select to anon using (true);
-
-create policy "bot writes weekly reports" on weekly_reports
-  for insert to anon with check (true);
-
-create policy "bot appends to weekly reports" on weekly_reports
-  for update to anon using (true) with check (true);
-```
-
-Re-run the probe in step 4 afterwards.
-
-### Rolling the table back
-
-Dropping it is safe once `WEEKLY_UPDATES=0` is set and the service has restarted:
-
-```sql
-drop table weekly_reports;
-```
-
-Do it in that order. With `WEEKLY_UPDATES=0` set and the service restarted, the bot no longer restores `weekly_thread_ts` and no longer records replies in the weekly thread, so the table is safe to drop. With the weekly flow still active, a dropped table means a `PGRST205` on every Friday reply.
+Without `weekly_reports` the Friday thread still posts and closes, but nothing is recorded and the 16:30 reminder and 18:30 escalation log an error and return.
 
 ## Local verification before deploy
 
@@ -199,14 +121,13 @@ Reaction aliases are workspace custom emoji and are not upload candidates; uploa
 
 ### Reports are not saved
 
-- Verify Supabase connectivity and credentials
+- Verify `DATABASE_URL` and that the database is reachable from the service
 - Verify `standup_reports` exists
-- Verify the service role or RLS policies allow reads and writes
 
 ### Weekly updates are not saved
 
-- Verify `weekly_reports` exists and that the probe in [Supabase migration](#supabase-migration-weekly_reports) passes
-- Look for `PGRST205` (table missing) or `42501` (RLS blocking) in the Railway logs
+- Verify `weekly_reports` exists (see [Database](#database))
+- Look for `relation "weekly_reports" does not exist` in the logs
 - Confirm `WEEKLY_UPDATES` is not set to `0`
 
 ### No weekly thread appeared on Friday

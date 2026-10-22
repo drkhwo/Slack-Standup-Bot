@@ -19,8 +19,7 @@ Required `.env` variables:
 ```
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_APP_TOKEN=xapp-...
-SUPABASE_URL=https://...supabase.co
-SUPABASE_KEY=...
+DATABASE_URL=postgresql://user:pass@host:5432/standup
 CHANNEL_ID=C...
 VACATION_TRACKER_API_KEY=...   # optional
 ALERT_CHANNEL_ID=C...          # optional: mirror alerts to a monitoring channel
@@ -38,13 +37,13 @@ python -m pytest test_bot.py -v
 python -m pytest test_bot.py::TestPostDailyThread -v
 ```
 
-Tests mock all external dependencies (Slack, Supabase, APScheduler) at module load time.
+Tests mock all external dependencies (Slack, Postgres, APScheduler) at module load time.
 
 ## Architecture
 
 **Python bot (the live service):**
 
-- `main.py` — all bot logic: Slack app init, APScheduler jobs, Supabase reads/writes, Vacation Tracker API calls
+- `main.py` — all bot logic: Slack app init, APScheduler jobs, Postgres reads/writes (through `db.py`), Vacation Tracker API calls
 - `phrases.py` — list of randomised opening phrases for the daily thread
 - `test_bot.py` — unittest suite (TC-01 through TC-11) covering all bot functions
 
@@ -68,14 +67,14 @@ Tests mock all external dependencies (Slack, Supabase, APScheduler) at module lo
 While the weekly thread is live, the daily jobs at 09:15, 12:30 and 21:00 return early — the daily thread stays open but nobody is pinged for it twice — and the 13:01 close message gains a line saying the weekly thread is open until 18:00. All of that is gated on today's weekly thread having actually posted (`_weekly_thread_is_today()`), not on the calendar: if the 09:06 post fails, Friday falls back to the normal daily reminders and an alert goes to `ALERT_CHANNEL_ID`.
 
 **Key data flows:**
-1. `post_daily_thread()` posts the standup prompt to `CHANNEL_ID`, saves the returned thread `ts` to `daily_thread_ts` global and the `bot_state` Supabase table so it survives restarts.
+1. `post_daily_thread()` posts the standup prompt to `CHANNEL_ID`, saves the returned thread `ts` to `daily_thread_ts` global and the `bot_state` Postgres table so it survives restarts.
 2. `handle_message_events()` listens for replies in that thread. Each persisted reply gets one random reaction from the approved 17-alias set. Subsequent replies from the same user on the same day are appended to the existing record.
 3. `check_missing_reports()` queries `standup_reports` for today's date, cross-references `TEAM_USER_IDS` and vacation data, then uploads one of the reminder-pool Uncle Iroh GIFs with the reminder in-thread, falling back to text if the upload fails.
 4. `post_end_of_day_escalation()` does the same check but pings the CEO (`U068KKKNP9R`) if anyone is still missing.
 5. `post_weekly_thread()` posts a standalone message (not a reply), stores its `ts` in the `weekly_thread_ts` global and the `bot_state` table, then replies in the daily thread with a link to it. `handle_message_events()` routes replies by thread: daily → `standup_reports`, weekly → `weekly_reports`. Weekly replies get no reaction; only daily replies do. Before posting into the weekly thread, each Friday job checks that the stored `ts` is from today, so a failed post never redirects pings into last week's thread.
 6. `get_vacation_users()` calls `https://api.vacationtracker.io/v1/leaves` with pagination, maps Vacation Tracker users to Slack IDs via `TEAM_MAPPING`, returns a set of absent UIDs or `"error"` on failure.
 
-**Supabase tables:**
+**Postgres tables** (schema in `setup.sql`; `db.py` is a small psycopg client that keeps the supabase-style `table().select().eq().execute()` calls, which is why the global is still named `supabase`):
 - `standup_reports` — one row per user per day (`user_id`, `date`, `raw_text`, `thread_ts`); see `setup.sql`
 - `weekly_reports` — one row per user per Friday (same shape as `standup_reports`); see `setup.sql`
 - `bot_state` — key/value store for `daily_thread_ts` and `weekly_thread_ts` persistence across restarts

@@ -17,7 +17,8 @@ from pathlib import Path
 sys.modules['slack_bolt'] = MagicMock()
 sys.modules['slack_bolt.adapter'] = MagicMock()
 sys.modules['slack_bolt.adapter.socket_mode'] = MagicMock()
-sys.modules['supabase'] = MagicMock()
+sys.modules['psycopg'] = MagicMock()
+sys.modules['psycopg.rows'] = MagicMock()
 sys.modules['apscheduler'] = MagicMock()
 sys.modules['apscheduler.schedulers'] = MagicMock()
 sys.modules['apscheduler.schedulers.background'] = MagicMock()
@@ -27,8 +28,7 @@ sys.modules['dotenv'] = MagicMock()
 with patch.dict('os.environ', {
     'SLACK_BOT_TOKEN': 'xoxb-test-token',
     'SLACK_APP_TOKEN': 'xapp-test-token',
-    'SUPABASE_URL': 'https://test.supabase.co',
-    'SUPABASE_KEY': 'test-key',
+    'DATABASE_URL': 'postgresql://test@localhost/test',
     'CHANNEL_ID': 'C08UT7VP2TA',
 }):
     import importlib
@@ -50,8 +50,8 @@ class TestConfiguration(unittest.TestCase):
         self.assertIsNotNone(bot_module.SLACK_BOT_TOKEN)
 
     def test_supabase_url_is_set(self):
-        """TC-01-03: SUPABASE_URL must be set"""
-        self.assertIsNotNone(bot_module.SUPABASE_URL)
+        """TC-01-03: DATABASE_URL must be set"""
+        self.assertIsNotNone(bot_module.DATABASE_URL)
 
     def test_team_user_ids_not_empty(self):
         """TC-01-04: TEAM_USER_IDS must contain at least one user"""
@@ -144,23 +144,19 @@ class TestSupabaseClient(unittest.TestCase):
     def test_get_supabase_client_returns_none_without_credentials(self):
         """TC-02-01: get_supabase_client() returns None without credentials"""
         with patch.dict('os.environ', {}, clear=True):
-            original_url = bot_module.SUPABASE_URL
-            original_key = bot_module.SUPABASE_KEY
-            bot_module.SUPABASE_URL = None
-            bot_module.SUPABASE_KEY = None
+            original_url = bot_module.DATABASE_URL
+            bot_module.DATABASE_URL = None
             result = bot_module.get_supabase_client()
-            bot_module.SUPABASE_URL = original_url
-            bot_module.SUPABASE_KEY = original_key
+            bot_module.DATABASE_URL = original_url
             self.assertIsNone(result)
 
     def test_get_supabase_client_calls_create_client(self):
         """TC-02-02: get_supabase_client() calls create_client with correct params"""
         mock_client = MagicMock()
         with patch('main.create_client', return_value=mock_client) as mock_create:
-            bot_module.SUPABASE_URL = 'https://test.supabase.co'
-            bot_module.SUPABASE_KEY = 'test-key'
+            bot_module.DATABASE_URL = 'postgresql://test@localhost/test'
             result = bot_module.get_supabase_client()
-            mock_create.assert_called_once_with('https://test.supabase.co', 'test-key')
+            mock_create.assert_called_once_with('postgresql://test@localhost/test')
             self.assertEqual(result, mock_client)
 
 

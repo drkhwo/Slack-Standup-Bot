@@ -15,3 +15,8 @@ create table weekly_reports (
   thread_ts text not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+create table bot_state (
+  key text primary key,
+  value text not null
+);

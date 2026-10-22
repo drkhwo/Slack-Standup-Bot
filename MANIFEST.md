@@ -5,7 +5,7 @@
 
 ## Overview
 
-Slack Standup Bot automates a daily Slack status thread for a fixed team roster. It posts the thread, collects replies, persists reports in Supabase, marks confirmed messages with a reaction, checks Vacation Tracker to avoid false reminders, posts daytime reminders for missing updates, and escalates unresolved missing reports at the end of the day.
+Slack Standup Bot automates a daily Slack status thread for a fixed team roster. It posts the thread, collects replies, persists reports in Postgres, marks confirmed messages with a reaction, checks Vacation Tracker to avoid false reminders, posts daytime reminders for missing updates, and escalates unresolved missing reports at the end of the day.
 
 ## Architecture
 
@@ -19,10 +19,10 @@ Slack Socket Mode events
     |       |
     |       +------------> APScheduler cron jobs
     |
-    +--------------------> Supabase
+    +--------------------> Postgres
 ```
 
-**Tech stack:** Python, Slack Bolt, Supabase, APScheduler, requests, Railway
+**Tech stack:** Python, Slack Bolt, Postgres (psycopg), APScheduler, requests, Railway
 
 ## Runtime behavior
 
@@ -30,7 +30,7 @@ Slack Socket Mode events
 
 - Posts one standup prompt to `CHANNEL_ID`
 - Uses a random opening phrase from `phrases.py`
-- Persists the returned Slack thread timestamp in memory and in Supabase
+- Persists the returned Slack thread timestamp in memory and in Postgres
 - Posts a same-thread vacation status message immediately after the main prompt
 
 ### Report collection
@@ -44,7 +44,7 @@ Slack Socket Mode events
 
 ### Missing report reminders
 
-- Loads today's reports from Supabase
+- Loads today's reports from Postgres
 - Loads approved absences from Vacation Tracker
 - Excludes users on leave from reminder targeting
 - Uploads one of the reminder-pool Uncle Iroh GIFs with the reminder in the existing standup thread for anyone still missing
@@ -103,8 +103,7 @@ Suggested structure:
 |---|---|---|
 | `SLACK_BOT_TOKEN` | Yes | Bot token |
 | `SLACK_APP_TOKEN` | Yes | Socket Mode app token |
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_KEY` | Yes | Supabase API key |
+| `DATABASE_URL` | Yes | Postgres connection string; schema in `setup.sql` |
 | `CHANNEL_ID` | Yes | Slack channel for standups |
 | `VACATION_TRACKER_API_KEY` | No | Enables leave checks |
 | `ALERT_CHANNEL_ID` | No | Sends monitoring alerts |

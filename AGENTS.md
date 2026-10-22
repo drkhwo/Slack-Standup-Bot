@@ -20,8 +20,7 @@ Required `.env` variables:
 ```text
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_APP_TOKEN=xapp-...
-SUPABASE_URL=https://...supabase.co
-SUPABASE_KEY=...
+DATABASE_URL=postgresql://user:pass@host:5432/standup
 CHANNEL_ID=C...
 VACATION_TRACKER_API_KEY=...   # optional
 ALERT_CHANNEL_ID=C...          # optional
@@ -36,23 +35,23 @@ python -m pytest test_bot.py -v
 python -m pytest test_bot.py::TestPostDailyThread -v
 ```
 
-Tests mock Slack, Supabase, APScheduler, and dotenv imports at module load time.
+Tests mock Slack, Postgres (psycopg), APScheduler, and dotenv imports at module load time.
 
 ## Production architecture
 
 ### Live Python bot
 
-- `main.py` — application bootstrap, scheduler jobs, Slack event handling, Supabase persistence, Vacation Tracker integration
+- `main.py` — application bootstrap, scheduler jobs, Slack event handling, Postgres persistence (`db.py`), Vacation Tracker integration
 - `phrases.py` — randomized opening phrases for the daily standup thread
 - `test_bot.py` — regression tests for bot behavior
 
 ### Main runtime flow
 
-1. `main()` initializes the Slack Bolt app, Supabase client, background scheduler, and message event handler.
+1. `main()` initializes the Slack Bolt app, Postgres client, background scheduler, and message event handler.
 2. `post_daily_thread()` posts the daily standup message to `CHANNEL_ID`, stores the returned Slack timestamp in the in-memory `daily_thread_ts` variable, and persists it into the `bot_state` table.
 3. `post_daily_thread()` immediately posts a vacation status reply in the same thread based on `get_vacation_users()`.
 4. `handle_message_events()` listens for replies in the tracked threads, ignores bot messages, writes or updates the user's report in `standup_reports` (daily thread) or `weekly_reports` (Friday weekly thread), and adds one random approved reaction from the 17-alias set after a successful database write.
-5. `check_missing_reports()` loads today's reporters from Supabase, subtracts users who are out, and uploads one of the reminder-pool Uncle Iroh GIFs with the daytime reminder for anyone still missing.
+5. `check_missing_reports()` loads today's reporters from Postgres, subtracts users who are out, and uploads one of the reminder-pool Uncle Iroh GIFs with the daytime reminder for anyone still missing.
 6. `post_end_of_day_escalation()` posts a final same-thread escalation at `21:00 Europe/Paris` if anyone is still missing, tagging only `@dk`.
 7. On Fridays `post_weekly_thread()` posts a second, separate thread for weekly updates and links to it from the daily thread. While that thread is live, the daily reminder, personal DM, and end-of-day escalation return early — the daily thread stays open but optional. `check_missing_weekly_reports()`, `post_weekly_thread_closed()`, and `post_weekly_escalation()` then work the weekly thread on its own schedule, each refusing to touch a thread that is not from today. Every relaxation and every weekly job is gated on `_weekly_thread_is_today()`, so a failed 09:06 post degrades to the ordinary daily flow plus an alert rather than to silence. `WEEKLY_UPDATES=0` disables all of this, including the reply routing into `weekly_reports`.
 

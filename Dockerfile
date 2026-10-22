@@ -9,10 +9,10 @@ RUN pip install --no-cache-dir \
     "python-dotenv>=1.2.1" \
     "requests>=2.31.0" \
     "slack-bolt>=1.27.0" \
-    "supabase>=2.27.2"
+    "psycopg[binary]>=3.2"
 
 # Copy application code
-COPY main.py phrases.py ./
+COPY main.py phrases.py db.py ./
 COPY assets/iroh ./assets/iroh
 
 # Run the bot
