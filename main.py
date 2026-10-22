@@ -112,7 +112,7 @@ REACTION_ALIASES = (
     "chefkiss",
     "catjam",
     "party-parrot",
-    "shipit",
+    "deployparrot",
     "meow_salute",
     "meow_cheer",
     "doggo-happy",

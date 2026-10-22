@@ -595,7 +595,7 @@ class TestPhrases(unittest.TestCase):
         """TC-06-04: Reaction aliases are exactly the approved 17 workspace emoji"""
         expected = {
             "tea-pause", "meow_bow", "chefkiss", "catjam", "party-parrot",
-            "shipit", "meow_salute", "meow_cheer", "doggo-happy",
+            "deployparrot", "meow_salute", "meow_cheer", "doggo-happy",
             "impressive-very-nice", "blob-hearts", "dance-vibe", "keanu-thanks",
             "chill-guy", "eevee-cheering", "thumbs-up-cat", "goodgood",
         }

@@ -129,7 +129,7 @@ Current verified suite size: `105` tests.
 - Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
 - The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Reminder and escalation media are selected from the checked-in manifest and uploaded directly to Slack.
-- The approved confirmation reactions are `tea-pause`, `meow_bow`, `chefkiss`, `catjam`, `party-parrot`, `shipit`, `meow_salute`, `meow_cheer`, `doggo-happy`, `impressive-very-nice`, `blob-hearts`, `dance-vibe`, `keanu-thanks`, `chill-guy`, `eevee-cheering`, `thumbs-up-cat`, and `goodgood`.
+- The approved confirmation reactions are `tea-pause`, `meow_bow`, `chefkiss`, `catjam`, `party-parrot`, `deployparrot`, `meow_salute`, `meow_cheer`, `doggo-happy`, `impressive-very-nice`, `blob-hearts`, `dance-vibe`, `keanu-thanks`, `chill-guy`, `eevee-cheering`, `thumbs-up-cat`, and `goodgood`.
 - Only the 11 aliases in `assets/iroh/manifest.json` are eligible for media uploads, each limited to the message types in its `use` list.
 - End-of-day escalation stays in the standup thread and does not write to `ALERT_CHANNEL_ID`.
 
