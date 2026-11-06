@@ -1961,7 +1961,7 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.assertEqual(call_kwargs['thread_ts'], bot_module.weekly_thread_ts)
         self.assertEqual(
             call_kwargs['initial_comment'],
-            "The week is ending, and this thread still has no weekly update from <@U333>. "
+            "The week is ending, and this thread still has no Friday essay from <@U333>. "
             "<@U068KKKNP9R>, letting you know.",
         )
 
