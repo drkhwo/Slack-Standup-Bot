@@ -146,7 +146,7 @@ REMINDER_MESSAGES = (
 
 THREAD_CLOSED_MESSAGE = "The tea has gone cold. Thread closed."
 
-FRIDAY_THREAD_CLOSED_SUFFIX = " The weekly thread stays open until 18:00, so there is time for one more cup."
+FRIDAY_THREAD_CLOSED_SUFFIX = " Friday essays stay open until 18:00, so there is time for one more cup."
 
 WEEKLY_THREAD_TEXT = (
     "<!subteam^SF3F5Q5V5>\n\n"
@@ -750,7 +750,7 @@ def post_weekly_escalation():
 
         mentions = " ".join([f"<@{uid}>" for uid in missing_users])
         text = (
-            f"The week is ending, and this thread still has no weekly update from {mentions}. "
+            f"The week is ending, and this thread still has no Friday essay from {mentions}. "
             f"<@U068KKKNP9R>, letting you know."
         )
 
