@@ -40,7 +40,7 @@ Slack Socket Mode events
 - Ignores bot-authored messages
 - Inserts a new `standup_reports` row for the first reply of the day
 - Appends later replies from the same user to the existing `raw_text`
-- Adds one random approved reaction from the 17-alias set only after the database write succeeds
+- Adds one random approved reaction from the 17-alias set only after the database write succeeds, and only to daily-thread replies (the Friday essays thread gets none)
 
 ### Missing report reminders
 

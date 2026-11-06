@@ -71,7 +71,7 @@ If a required scope is added or changed, re-authorize/reinstall the Slack app so
 ### Existing message flow
 
 - [ ] Confirm the daily standup thread is posted in the configured channel.
-- [ ] Confirm a saved user report receives one approved custom reaction after persistence succeeds.
+- [ ] Confirm a saved daily report receives one approved custom reaction after persistence succeeds, and a Friday essay receives none.
 - [ ] Confirm a missing-report reminder uploads a local GIF/PNG into the active thread.
 - [ ] Confirm the end-of-day escalation uploads its local GIF/PNG into the same thread.
 - [ ] Confirm that a controlled media-upload failure posts the same copy as a text-only reply in the active thread.
