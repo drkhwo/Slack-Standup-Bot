@@ -170,7 +170,7 @@ After deployment, verify the following:
 On the first Friday after deploying the weekly-update change, also verify:
 
 1. `09:06` — a second, standalone message appears in the channel (not a reply), and a pointer reply with a link to it appears in the daily thread
-2. A reply in the weekly thread gets a reaction, and a row shows up in `weekly_reports` for that user and date
+2. A reply in the weekly thread gets **no** reaction, and a row shows up in `weekly_reports` for that user and date
 3. `12:30` and `21:00` — **no** daily reminder and **no** daily escalation; the logs read `Weekly thread is live — the daily thread is optional today`
 4. `13:01` — the daily close message ends with `The weekly update thread stays open until 18:00.`
 5. `16:30` — only people with no weekly update are pinged, inside the weekly thread

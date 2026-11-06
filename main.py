@@ -874,12 +874,14 @@ def register_events(app_instance):
                 supabase.table(table).insert(data).execute()
                 logger.info(f"Inserted new {table} record for {user_id}")
 
-            reaction_name = random.choice(REACTION_ALIASES)
-            app_instance.client.reactions_add(
-                channel=CHANNEL_ID,
-                name=reaction_name,
-                timestamp=ts
-            )
+            # Only daily replies get a confirmation reaction; weekly replies stay unmarked
+            if table == "standup_reports":
+                reaction_name = random.choice(REACTION_ALIASES)
+                app_instance.client.reactions_add(
+                    channel=CHANNEL_ID,
+                    name=reaction_name,
+                    timestamp=ts
+                )
 
         except Exception as e:
             logger.error(f"Error saving report: {e}")
