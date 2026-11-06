@@ -1,22 +1,23 @@
-# Deploy Guide — Railway
+# Deploy Guide — us-4 (Kubernetes)
+
+The bot runs on the `us-4` cluster, namespace `ai-slack-bots`, as Deployment `standup-bot` (Socket Mode, **strictly 1 replica**, strategy `Recreate`). The Kubernetes manifests, the Postgres StatefulSet `standup-pg` and its backup CronJob live in [lukalabs/slack-bots/standup-bot](https://github.com/lukalabs/slack-bots/tree/main/standup-bot); this repository holds only the bot code.
+
+**A merge to `main` does not deploy anything.** There is no CI for the image: build, push and restart by hand (see [Deploy](#deploy)).
 
 ## Prerequisites
 
-Before deploying, make sure the following are ready:
+1. `kubectl` access to `lukalabs-us-4` with rights in `ai-slack-bots`
+2. Docker, logged in to `ghcr.io` with a token that can push `ghcr.io/lukalabs/standup-bot`
+3. A Slack app with Socket Mode enabled
+4. The `standup-pg` database with `standup_reports`, `weekly_reports` and `bot_state` created from `setup.sql` — see [Database](#database)
 
-1. A Railway account with access to the target project
-2. A Slack app with Socket Mode enabled
-3. A Postgres database with `standup_reports`, `weekly_reports` and `bot_state` created from `setup.sql` — see [Database](#database)
-4. Repository access to this project
+## Environment variables
 
-## Required environment variables
-
-Configure these in the Railway service:
+The bot reads its variables from the Secret `standup-bot-env`. `DATABASE_URL` is not in it: the Deployment builds it from the `standup-pg` Secret.
 
 ```text
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_APP_TOKEN=xapp-your-app-token
-DATABASE_URL=postgresql://user:pass@host:5432/standup
 CHANNEL_ID=C1234567890
 ```
 
@@ -25,14 +26,22 @@ Optional variables:
 ```text
 VACATION_TRACKER_API_KEY=...
 ALERT_CHANNEL_ID=C1234567890
+PERSONAL_REMINDER_USER_ID=U1234567890
 DEPLOY_NOTIFY=1
 SKIP_TODAY=1
 WEEKLY_UPDATES=0
 ```
 
+To change a variable, edit the Secret and restart the bot:
+
+```bash
+kubectl -n ai-slack-bots edit secret standup-bot-env      # values are base64
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
+```
+
 `WEEKLY_UPDATES` is a kill switch, not a feature flag: leave it unset and the Friday weekly-update thread runs. Set it to `0` to go back to daily-only behaviour — no weekly thread, no weekly reminders, and Friday's daily reminder, personal DM, and end-of-day escalation behave exactly as they do Monday through Thursday. Any value other than `0` (including an unset variable) means the weekly flow is active.
 
-`DEPLOY_NOTIFY=1` is intended for a one-time deploy confirmation. Remove it after a successful deployment if you do not want deploy alerts on later restarts.
+`DEPLOY_NOTIFY=1` stays on deliberately: every restart posts "bot is back online", which is the quickest sign that a deploy came up.
 
 ## Database
 
@@ -52,40 +61,49 @@ Run the regression suite:
 python -m pytest test_bot.py -v
 ```
 
-## Deploy options
+## Deploy
 
-### Option 1: Git-driven deploy
-
-If the Railway service is connected to the GitHub repository:
+Build the image from the merged `main`, not from a working tree: untracked files and local edits must not reach production.
 
 ```bash
-git add .dockerignore Dockerfile main.py phrases.py test_bot.py AGENTS.md CLAUDE.md MANIFEST.md DEPLOY.md SLACK_APP_PROFILE_CHECK.md assets/iroh
-git commit -m "Add end-of-day missing report escalation"
-git push origin main
+git fetch origin
+rm -rf /tmp/standup-build && mkdir /tmp/standup-build
+git archive origin/main | tar -x -C /tmp/standup-build
+docker build --platform linux/amd64 \
+  --label org.opencontainers.image.revision=$(git rev-parse origin/main) \
+  -t ghcr.io/lukalabs/standup-bot:latest /tmp/standup-build
+docker push ghcr.io/lukalabs/standup-bot:latest          # note the digest it prints
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
+kubectl -n ai-slack-bots rollout status deploy/standup-bot
 ```
 
-Railway will build and deploy from the pushed commit.
-
-### Option 2: Railway CLI deploy
-
-If you want to deploy directly from the current working tree:
+The deploy is proven when the pod runs the digest that `docker push` printed:
 
 ```bash
-railway link
-railway up
+kubectl -n ai-slack-bots get pod -l app.kubernetes.io/name=standup-bot \
+  -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
 ```
 
-This deploys the current local state without requiring a Git push.
+### Rollback
+
+Point `latest` back at the previous digest and restart. Read that digest from the running pod before you deploy.
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/lukalabs/standup-bot@sha256:<previous>
+docker tag ghcr.io/lukalabs/standup-bot@sha256:<previous> ghcr.io/lukalabs/standup-bot:latest
+docker push ghcr.io/lukalabs/standup-bot:latest
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
+```
 
 ## Post-deploy checks
 
 After deployment, verify the following:
 
-1. Service starts successfully and logs `Bot started!`
+1. The pod runs the new digest and logs `Scheduler started`, `Bot started!` and `Bolt app is running!`
 2. The bot connects to Slack Socket Mode without authentication errors
 3. The scheduler runs in `Europe/Paris` local time
 4. The next scheduled standup thread appears in the configured channel at `09:04 Europe/Paris`
-5. A saved reply receives one of the 17 approved reactions
+5. A saved reply in the daily thread receives one of the 17 approved reactions; a reply in the Friday weekly thread receives none
 6. The bot posts the missing-report reminder at `12:30 Europe/Paris` and closes the thread at `13:01 Europe/Paris`
 7. If someone is still missing at `21:00 Europe/Paris`, the bot posts the final escalation in the same thread and tags `@dk`
 
@@ -109,7 +127,7 @@ Reaction aliases are workspace custom emoji and are not upload candidates; uploa
 ### Bot does not start
 
 - Confirm all required environment variables are set
-- Check the Railway deployment logs
+- Check the logs: `kubectl -n ai-slack-bots logs deploy/standup-bot -c bot`
 - Verify the Slack bot token and app token belong to the same Slack app
 
 ### No daily thread appears
@@ -155,9 +173,9 @@ Reaction aliases are workspace custom emoji and are not upload candidates; uploa
 ## Useful commands
 
 ```bash
-railway whoami
-railway status
-railway link
-railway up
-railway logs
+kubectl -n ai-slack-bots get deploy/standup-bot sts/standup-pg cronjob/standup-pg-backup
+kubectl -n ai-slack-bots get pod -l app.kubernetes.io/name=standup-bot -o wide
+kubectl -n ai-slack-bots logs deploy/standup-bot -c bot --tail=100
+kubectl -n ai-slack-bots exec standup-pg-0 -- psql -U standup -d standup
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
 ```

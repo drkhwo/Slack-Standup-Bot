@@ -4,9 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working in this reposi
 
 ## What this is
 
-A Slack standup bot deployed on Railway. It posts a daily thread to a Slack channel, tracks who has replied, reminds missing reporters, posts an end-of-day escalation for missing updates, and checks the Vacation Tracker API to exclude people who are out.
-
-The repository also contains a scaffolded Express/React/TypeScript web app in `server/` and `client/`, but that app is not part of the live bot flow.
+A Slack standup bot deployed on the `us-4` Kubernetes cluster (namespace `ai-slack-bots`). It posts a daily thread to a Slack channel, tracks who has replied, reminds missing reporters, posts an end-of-day escalation for missing updates, and checks the Vacation Tracker API to exclude people who are out.
 
 ## Running the bot locally
 
@@ -24,7 +22,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/standup
 CHANNEL_ID=C...
 VACATION_TRACKER_API_KEY=...   # optional
 ALERT_CHANNEL_ID=C...          # optional
-DEPLOY_NOTIFY=1                # optional, only for one-time deploy alerts
+DEPLOY_NOTIFY=1                # optional: post "bot is back online" on every start (kept on in production)
 ```
 
 ## Running tests
@@ -148,6 +146,6 @@ The daily thread and the weekly thread both open with one Slack user group, `@r-
 
 ## Deployment
 
-`Dockerfile` and `railway.toml` deploy `main.py` on Railway.
+The `Dockerfile` image `ghcr.io/lukalabs/standup-bot:latest` runs as Deployment `standup-bot` on `us-4`; manifests live in `lukalabs/slack-bots/standup-bot`. A merge to `main` does not deploy: build, push and `rollout restart` by hand.
 
 See `DEPLOY.md` for deployment and verification steps.

@@ -1,7 +1,7 @@
 # Slack Standup Bot — Project Manifest
 
 **Version:** 0.3.0
-**Updated:** 2026-04-02
+**Updated:** 2026-11-06
 
 ## Overview
 
@@ -22,7 +22,7 @@ Slack Socket Mode events
     +--------------------> Postgres
 ```
 
-**Tech stack:** Python, Slack Bolt, Postgres (psycopg), APScheduler, requests, Railway
+**Tech stack:** Python, Slack Bolt, Postgres (psycopg), APScheduler, requests, Kubernetes (`us-4`)
 
 ## Runtime behavior
 
@@ -126,7 +126,6 @@ Current verified suite size: `105` tests.
 - Only one bot instance should run at a time.
 - `TEAM_MAPPING` and `DEACTIVATED_USER_IDS` are hardcoded and must be kept current when the roster changes or a Slack account is deactivated.
 - Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
-- The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Reminder and escalation media are selected from the checked-in manifest and uploaded directly to Slack.
 - The approved confirmation reactions are `tea-pause`, `meow_bow`, `chefkiss`, `catjam`, `party-parrot`, `deployparrot`, `meow_salute`, `meow_cheer`, `doggo-happy`, `impressive-very-nice`, `blob-hearts`, `dance-vibe`, `keanu-thanks`, `chill-guy`, `eevee-cheering`, `thumbs-up-cat`, and `goodgood`.
 - Only the 11 aliases in `assets/iroh/manifest.json` are eligible for media uploads, each limited to the message types in its `use` list.
@@ -141,7 +140,7 @@ Current verified suite size: `105` tests.
 
 ## Deployment
 
-Railway uses the `Dockerfile` build and starts the service with:
+The `Dockerfile` image runs as Deployment `standup-bot` in namespace `ai-slack-bots` on `us-4` and starts the bot with:
 
 ```bash
 python main.py

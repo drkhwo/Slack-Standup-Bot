@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Slack standup bot deployed on Railway. It posts a daily thread to a Slack channel, tracks who has replied, reminds missing reporters, and checks the Vacation Tracker API to exclude people on leave.
-
-The repo also contains a scaffolded (mostly empty) Express/React/TypeScript web app (`server/`, `client/`) that is not currently used by the bot.
+A Slack standup bot deployed on the `us-4` Kubernetes cluster (namespace `ai-slack-bots`). It posts a daily thread to a Slack channel, tracks who has replied, reminds missing reporters, and checks the Vacation Tracker API to exclude people on leave.
 
 ## Running the bot locally
 
@@ -23,7 +21,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/standup
 CHANNEL_ID=C...
 VACATION_TRACKER_API_KEY=...   # optional
 ALERT_CHANNEL_ID=C...          # optional: mirror alerts to a monitoring channel
-DEPLOY_NOTIFY=1                # optional: send deploy notification on startup (set once, then remove)
+DEPLOY_NOTIFY=1                # optional: post "bot is back online" on every start (kept on in production)
 SKIP_TODAY=1                   # optional: set to "1" to suppress all reminders for the day; any other value (including "0") means normal operation
 WEEKLY_UPDATES=0               # optional: set to "0" to switch off the Friday weekly-update thread and restore daily-only behaviour
 ```
@@ -79,7 +77,7 @@ While the weekly thread is live, the daily jobs at 09:15, 12:30 and 21:00 return
 - `weekly_reports` — one row per user per Friday (same shape as `standup_reports`); see `setup.sql`
 - `bot_state` — key/value store for `daily_thread_ts` and `weekly_thread_ts` persistence across restarts
 
-**Deployment:** Dockerfile + `railway.toml` deploy `main.py` on Railway. See `DEPLOY.md` for setup steps.
+**Deployment:** the `Dockerfile` image `ghcr.io/lukalabs/standup-bot:latest` runs as Deployment `standup-bot` on `us-4`; manifests live in `lukalabs/slack-bots/standup-bot`. A merge to `main` does not deploy: build, push and `rollout restart` by hand. See `DEPLOY.md`.
 
 **Team membership:** `TEAM_MAPPING` in `main.py` maps active Slack user IDs to Vacation Tracker identity records (`vt_user_id`, `name`, and `email`). `DEACTIVATED_USER_IDS` is the manual fallback for deactivated Slack accounts. `TEAM_USER_IDS` derives from the mapping, excluding the CEO (`U068KKKNP9R`) and all deactivated IDs.
 
@@ -98,9 +96,9 @@ Deactivated Slack accounts are also skipped at runtime: `_missing_from()` calls 
 
 **User group mention:** the daily and the weekly thread both open with a single Slack user group, `@r-team` (`<!subteam^SF3F5Q5V5>`), decided by the CEO on 2026-08-26 — it replaced the three separate `@eng-team` / `@brand-team` / `@gtm-team` mentions. The `# == @eng-team ==` style comments inside `TEAM_MAPPING` are only grouping labels for humans reading the file; they do not drive any mention. Whoever must be pinged in the thread header has to be a member of `@r-team` in Slack — the bot token has no `usergroups:read` scope, so group membership cannot be checked from code.
 
-**Friday weekly updates:** Two threads with two different CTAs. The daily thread is posted as usual but is optional; the weekly thread (09:06) asks for a short, human-written summary of the week plus a candid line of reflection, due 18:00, and it is mandatory. Announced by the CEO on 2026-08-19 as an experiment that may eventually replace daily standups. To roll the whole thing back, set `WEEKLY_UPDATES=0` in Railway and restart — the bot then behaves exactly as it did before, and the `weekly_reports` table simply stops filling up.
+**Friday weekly updates:** Two threads with two different CTAs. The daily thread is posted as usual but is optional; the weekly thread (09:06) asks for a short, human-written summary of the week plus a candid line of reflection, due 18:00, and it is mandatory. Announced by the CEO on 2026-08-19 as an experiment that may eventually replace daily standups. To roll the whole thing back, set `WEEKLY_UPDATES=0` in the `standup-bot-env` Secret and restart — the bot then behaves exactly as it did before, and the `weekly_reports` table simply stops filling up.
 
-**Skipping reminders for a day:** Set `SKIP_TODAY=1` in Railway env vars. Important: `SKIP_TODAY=0` does NOT skip — only the value `"1"` does. Remove or set to `0` to resume normal operation.
+**Skipping reminders for a day:** Set `SKIP_TODAY=1` in the `standup-bot-env` Secret and restart. Important: `SKIP_TODAY=0` does NOT skip — only the value `"1"` does. Remove or set to `0` to resume normal operation.
 
 **Reaction/media aliases:** The runtime has 17 approved reaction aliases, all existing workspace custom emoji (checked against `emoji.list` on 2026-10-22). Reminder and escalation uploads pick from the 11 GIFs in `assets/iroh/manifest.json`; each GIF lists the message types it suits in `use` (`MEDIA_POOLS`), and escalations that ping the CEO only get the four calm tea GIFs. The bot speaks as Uncle Iroh (Avatar: The Last Airbender): warm, tea and proverbs, never shaming, and every actionable line still states what to do and by when.
 
