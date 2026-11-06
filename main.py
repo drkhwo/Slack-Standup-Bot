@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import requests
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
-from supabase import create_client
+from db import create_client
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
@@ -24,8 +24,7 @@ load_dotenv()
 # Configuration
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+DATABASE_URL = os.environ.get("DATABASE_URL")  # Postgres connection string
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 ALERT_CHANNEL_ID = os.environ.get("ALERT_CHANNEL_ID")  # Optional: mirror alerts to a test/monitoring channel
 VACATION_TRACKER_API_KEY = os.environ.get("VACATION_TRACKER_API_KEY")
@@ -238,9 +237,9 @@ def _upload_thread_media_or_text(text, media_alias, thread_ts=None):
         return False
 
 def get_supabase_client():
-    if not SUPABASE_URL or not SUPABASE_KEY:
+    if not DATABASE_URL:
         return None
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    return create_client(DATABASE_URL)
 
 # Initialize clients
 app = None

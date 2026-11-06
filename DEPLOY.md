@@ -1,25 +1,23 @@
-# Deploy Guide — Railway
+# Deploy Guide — us-4 (Kubernetes)
+
+The bot runs on the `us-4` cluster, namespace `ai-slack-bots`, as Deployment `standup-bot` (Socket Mode, **strictly 1 replica**, strategy `Recreate`). The Kubernetes manifests, the Postgres StatefulSet `standup-pg` and its backup CronJob live in [lukalabs/slack-bots/standup-bot](https://github.com/lukalabs/slack-bots/tree/main/standup-bot); this repository holds only the bot code.
+
+**A merge to `main` does not deploy anything.** There is no CI for the image: build, push and restart by hand (see [Deploy](#deploy)).
 
 ## Prerequisites
 
-Before deploying, make sure the following are ready:
+1. `kubectl` access to `lukalabs-us-4` with rights in `ai-slack-bots`
+2. Docker, logged in to `ghcr.io` with a token that can push `ghcr.io/lukalabs/standup-bot`
+3. A Slack app with Socket Mode enabled
+4. The `standup-pg` database with `standup_reports`, `weekly_reports` and `bot_state` created from `setup.sql` — see [Database](#database)
 
-1. A Railway account with access to the target project
-2. A Slack app with Socket Mode enabled
-3. A Supabase project with `standup_reports` created from `setup.sql`
-4. A `bot_state` table for storing `daily_thread_ts` and `weekly_thread_ts`
-5. A `weekly_reports` table for the Friday weekly updates — see [Supabase migration](#supabase-migration-weekly_reports)
-6. Repository access to this project
+## Environment variables
 
-## Required environment variables
-
-Configure these in the Railway service:
+The bot reads its variables from the Secret `standup-bot-env`. `DATABASE_URL` is not in it: the Deployment builds it from the `standup-pg` Secret.
 
 ```text
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_APP_TOKEN=xapp-your-app-token
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-key
 CHANNEL_ID=C1234567890
 ```
 
@@ -28,99 +26,32 @@ Optional variables:
 ```text
 VACATION_TRACKER_API_KEY=...
 ALERT_CHANNEL_ID=C1234567890
+PERSONAL_REMINDER_USER_ID=U1234567890
 DEPLOY_NOTIFY=1
 SKIP_TODAY=1
 WEEKLY_UPDATES=0
 ```
 
+To change a variable, edit the Secret and restart the bot:
+
+```bash
+kubectl -n ai-slack-bots edit secret standup-bot-env      # values are base64
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
+```
+
 `WEEKLY_UPDATES` is a kill switch, not a feature flag: leave it unset and the Friday weekly-update thread runs. Set it to `0` to go back to daily-only behaviour — no weekly thread, no weekly reminders, and Friday's daily reminder, personal DM, and end-of-day escalation behave exactly as they do Monday through Thursday. Any value other than `0` (including an unset variable) means the weekly flow is active.
 
-`DEPLOY_NOTIFY=1` is intended for a one-time deploy confirmation. Remove it after a successful deployment if you do not want deploy alerts on later restarts.
+`DEPLOY_NOTIFY=1` stays on deliberately: every restart posts "bot is back online", which is the quickest sign that a deploy came up.
 
-## Supabase migration: `weekly_reports`
+## Database
 
-The Friday weekly-update thread stores replies in their own table. Without it the thread still posts and still closes at 18:01, but nothing is recorded **and the enforcement goes silent**: `get_missing_weekly_users()` raises `PGRST205` before it can fall back to reading the Slack thread, so the 16:30 reminder and the 18:30 escalation both log an error and return. Run this before merging the weekly-update change.
+The bot stores reports and thread state in Postgres, reached through one connection string, `DATABASE_URL` (see `get_supabase_client()` and `db.py`). `setup.sql` creates all three tables — `standup_reports`, `weekly_reports` and `bot_state`:
 
-### How the connection works
-
-The bot only ever talks to Supabase through two environment variables set on the Railway service, `SUPABASE_URL` and `SUPABASE_KEY` (see `get_supabase_client()` in `main.py`). There is no connection string, no pooler, and no migration tool in the loop — `supabase-py` calls the project's REST API over HTTPS. Nothing about the connection changes when you add a table; the new table just has to be reachable by the same key.
-
-That key is the project's **anon** key, not a service-role key. So the new table has to be readable and writable by the `anon` role, exactly like `standup_reports` is today. This is why the table must be created from the SQL editor.
-
-> **Do not create this table from the Table Editor UI.** The UI enables Row Level Security on new tables by default. With RLS on and no policies, reads silently return zero rows and writes fail — the bot keeps running and the breakage only shows up as missing data. `create table` from the SQL editor leaves RLS off, matching `standup_reports`.
-
-### Steps
-
-1. Open the Supabase dashboard for the project referenced by `SUPABASE_URL`, then **SQL Editor → New query**.
-
-2. Paste the `weekly_reports` block from `setup.sql`:
-
-   ```sql
-   create table weekly_reports (
-     id uuid default gen_random_uuid() primary key,
-     user_id text not null,
-     date date not null default current_date,
-     raw_text text not null,
-     thread_ts text not null,
-     created_at timestamp with time zone default timezone('utc'::text, now()) not null
-   );
-   ```
-
-3. Run it. Expected result: `Success. No rows returned`.
-
-4. Confirm the table is reachable with the key the bot actually uses. From the repo root, with the Railway CLI linked (`railway status` shows the `SlackBot` service), this borrows the deployed variables without ever writing them to disk:
-
-   ```bash
-   railway run python -c "
-   import os
-   from supabase import create_client
-   client = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_KEY'])
-   probe = {'user_id': 'PROBE', 'date': '1970-01-01', 'raw_text': 'probe', 'thread_ts': '0'}
-   client.table('weekly_reports').insert(probe).execute()
-   print('insert ok:', client.table('weekly_reports').select('*').eq('user_id', 'PROBE').execute().data)
-   client.table('weekly_reports').delete().eq('user_id', 'PROBE').execute()
-   print('after cleanup:', client.table('weekly_reports').select('*').eq('user_id', 'PROBE').execute().data)
-   "
-   ```
-
-   Expected: `insert ok:` prints one row, `after cleanup:` prints `[]`. A `PGRST205` means the table is not there (wrong project, or the query never ran). A `42501` or an empty `insert ok:` means RLS is on — see below.
-
-5. Deploy. `WEEKLY_UPDATES` does not need to be set: unset means active.
-
-### If RLS ended up enabled
-
-Either turn it off so the table matches `standup_reports`:
-
-```sql
-alter table weekly_reports disable row level security;
+```bash
+psql "$DATABASE_URL" -f setup.sql
 ```
 
-Or keep it on and grant the `anon` role what the bot needs — it inserts, selects, and updates rows:
-
-```sql
-alter table weekly_reports enable row level security;
-
-create policy "bot reads weekly reports" on weekly_reports
-  for select to anon using (true);
-
-create policy "bot writes weekly reports" on weekly_reports
-  for insert to anon with check (true);
-
-create policy "bot appends to weekly reports" on weekly_reports
-  for update to anon using (true) with check (true);
-```
-
-Re-run the probe in step 4 afterwards.
-
-### Rolling the table back
-
-Dropping it is safe once `WEEKLY_UPDATES=0` is set and the service has restarted:
-
-```sql
-drop table weekly_reports;
-```
-
-Do it in that order. With `WEEKLY_UPDATES=0` set and the service restarted, the bot no longer restores `weekly_thread_ts` and no longer records replies in the weekly thread, so the table is safe to drop. With the weekly flow still active, a dropped table means a `PGRST205` on every Friday reply.
+Without `weekly_reports` the Friday thread still posts and closes, but nothing is recorded and the 16:30 reminder and 18:30 escalation log an error and return.
 
 ## Local verification before deploy
 
@@ -130,40 +61,49 @@ Run the regression suite:
 python -m pytest test_bot.py -v
 ```
 
-## Deploy options
+## Deploy
 
-### Option 1: Git-driven deploy
-
-If the Railway service is connected to the GitHub repository:
+Build the image from the merged `main`, not from a working tree: untracked files and local edits must not reach production.
 
 ```bash
-git add .dockerignore Dockerfile main.py phrases.py test_bot.py AGENTS.md CLAUDE.md MANIFEST.md DEPLOY.md SLACK_APP_PROFILE_CHECK.md assets/iroh
-git commit -m "Add end-of-day missing report escalation"
-git push origin main
+git fetch origin
+rm -rf /tmp/standup-build && mkdir /tmp/standup-build
+git archive origin/main | tar -x -C /tmp/standup-build
+docker build --platform linux/amd64 \
+  --label org.opencontainers.image.revision=$(git rev-parse origin/main) \
+  -t ghcr.io/lukalabs/standup-bot:latest /tmp/standup-build
+docker push ghcr.io/lukalabs/standup-bot:latest          # note the digest it prints
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
+kubectl -n ai-slack-bots rollout status deploy/standup-bot
 ```
 
-Railway will build and deploy from the pushed commit.
-
-### Option 2: Railway CLI deploy
-
-If you want to deploy directly from the current working tree:
+The deploy is proven when the pod runs the digest that `docker push` printed:
 
 ```bash
-railway link
-railway up
+kubectl -n ai-slack-bots get pod -l app.kubernetes.io/name=standup-bot \
+  -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
 ```
 
-This deploys the current local state without requiring a Git push.
+### Rollback
+
+Point `latest` back at the previous digest and restart. Read that digest from the running pod before you deploy.
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/lukalabs/standup-bot@sha256:<previous>
+docker tag ghcr.io/lukalabs/standup-bot@sha256:<previous> ghcr.io/lukalabs/standup-bot:latest
+docker push ghcr.io/lukalabs/standup-bot:latest
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
+```
 
 ## Post-deploy checks
 
 After deployment, verify the following:
 
-1. Service starts successfully and logs `Bot started!`
+1. The pod runs the new digest and logs `Scheduler started`, `Bot started!` and `Bolt app is running!`
 2. The bot connects to Slack Socket Mode without authentication errors
 3. The scheduler runs in `Europe/Paris` local time
 4. The next scheduled standup thread appears in the configured channel at `09:04 Europe/Paris`
-5. A saved reply receives one of the 17 approved reactions
+5. A saved reply in the daily thread receives one of the 17 approved reactions; a reply in the Friday weekly thread receives none
 6. The bot posts the missing-report reminder at `12:30 Europe/Paris` and closes the thread at `13:01 Europe/Paris`
 7. If someone is still missing at `21:00 Europe/Paris`, the bot posts the final escalation in the same thread and tags `@dk`
 
@@ -187,7 +127,7 @@ Reaction aliases are workspace custom emoji and are not upload candidates; uploa
 ### Bot does not start
 
 - Confirm all required environment variables are set
-- Check the Railway deployment logs
+- Check the logs: `kubectl -n ai-slack-bots logs deploy/standup-bot -c bot`
 - Verify the Slack bot token and app token belong to the same Slack app
 
 ### No daily thread appears
@@ -199,14 +139,13 @@ Reaction aliases are workspace custom emoji and are not upload candidates; uploa
 
 ### Reports are not saved
 
-- Verify Supabase connectivity and credentials
+- Verify `DATABASE_URL` and that the database is reachable from the service
 - Verify `standup_reports` exists
-- Verify the service role or RLS policies allow reads and writes
 
 ### Weekly updates are not saved
 
-- Verify `weekly_reports` exists and that the probe in [Supabase migration](#supabase-migration-weekly_reports) passes
-- Look for `PGRST205` (table missing) or `42501` (RLS blocking) in the Railway logs
+- Verify `weekly_reports` exists (see [Database](#database))
+- Look for `relation "weekly_reports" does not exist` in the logs
 - Confirm `WEEKLY_UPDATES` is not set to `0`
 
 ### No weekly thread appeared on Friday
@@ -234,9 +173,9 @@ Reaction aliases are workspace custom emoji and are not upload candidates; uploa
 ## Useful commands
 
 ```bash
-railway whoami
-railway status
-railway link
-railway up
-railway logs
+kubectl -n ai-slack-bots get deploy/standup-bot sts/standup-pg cronjob/standup-pg-backup
+kubectl -n ai-slack-bots get pod -l app.kubernetes.io/name=standup-bot -o wide
+kubectl -n ai-slack-bots logs deploy/standup-bot -c bot --tail=100
+kubectl -n ai-slack-bots exec standup-pg-0 -- psql -U standup -d standup
+kubectl -n ai-slack-bots rollout restart deploy/standup-bot
 ```

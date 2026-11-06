@@ -1,11 +1,11 @@
 # Slack Standup Bot — Project Manifest
 
 **Version:** 0.3.0
-**Updated:** 2026-04-02
+**Updated:** 2026-11-06
 
 ## Overview
 
-Slack Standup Bot automates a daily Slack status thread for a fixed team roster. It posts the thread, collects replies, persists reports in Supabase, marks confirmed messages with a reaction, checks Vacation Tracker to avoid false reminders, posts daytime reminders for missing updates, and escalates unresolved missing reports at the end of the day.
+Slack Standup Bot automates a daily Slack status thread for a fixed team roster. It posts the thread, collects replies, persists reports in Postgres, marks confirmed messages with a reaction, checks Vacation Tracker to avoid false reminders, posts daytime reminders for missing updates, and escalates unresolved missing reports at the end of the day.
 
 ## Architecture
 
@@ -19,10 +19,10 @@ Slack Socket Mode events
     |       |
     |       +------------> APScheduler cron jobs
     |
-    +--------------------> Supabase
+    +--------------------> Postgres
 ```
 
-**Tech stack:** Python, Slack Bolt, Supabase, APScheduler, requests, Railway
+**Tech stack:** Python, Slack Bolt, Postgres (psycopg), APScheduler, requests, Kubernetes (`us-4`)
 
 ## Runtime behavior
 
@@ -30,7 +30,7 @@ Slack Socket Mode events
 
 - Posts one standup prompt to `CHANNEL_ID`
 - Uses a random opening phrase from `phrases.py`
-- Persists the returned Slack thread timestamp in memory and in Supabase
+- Persists the returned Slack thread timestamp in memory and in Postgres
 - Posts a same-thread vacation status message immediately after the main prompt
 
 ### Report collection
@@ -44,7 +44,7 @@ Slack Socket Mode events
 
 ### Missing report reminders
 
-- Loads today's reports from Supabase
+- Loads today's reports from Postgres
 - Loads approved absences from Vacation Tracker
 - Excludes users on leave from reminder targeting
 - Uploads one of the reminder-pool Uncle Iroh GIFs with the reminder in the existing standup thread for anyone still missing
@@ -103,8 +103,7 @@ Suggested structure:
 |---|---|---|
 | `SLACK_BOT_TOKEN` | Yes | Bot token |
 | `SLACK_APP_TOKEN` | Yes | Socket Mode app token |
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_KEY` | Yes | Supabase API key |
+| `DATABASE_URL` | Yes | Postgres connection string; schema in `setup.sql` |
 | `CHANNEL_ID` | Yes | Slack channel for standups |
 | `VACATION_TRACKER_API_KEY` | No | Enables leave checks |
 | `ALERT_CHANNEL_ID` | No | Sends monitoring alerts |
@@ -127,7 +126,6 @@ Current verified suite size: `105` tests.
 - Only one bot instance should run at a time.
 - `TEAM_MAPPING` and `DEACTIVATED_USER_IDS` are hardcoded and must be kept current when the roster changes or a Slack account is deactivated.
 - Vacation Tracker matching prefers stable Vacation Tracker user ID, then user email, and falls back to normalized display names.
-- The repository still contains scaffolded `client/` and `server/` folders that are not part of the live bot.
 - Reminder and escalation media are selected from the checked-in manifest and uploaded directly to Slack.
 - The approved confirmation reactions are `tea-pause`, `meow_bow`, `chefkiss`, `catjam`, `party-parrot`, `deployparrot`, `meow_salute`, `meow_cheer`, `doggo-happy`, `impressive-very-nice`, `blob-hearts`, `dance-vibe`, `keanu-thanks`, `chill-guy`, `eevee-cheering`, `thumbs-up-cat`, and `goodgood`.
 - Only the 11 aliases in `assets/iroh/manifest.json` are eligible for media uploads, each limited to the message types in its `use` list.
@@ -142,7 +140,7 @@ Current verified suite size: `105` tests.
 
 ## Deployment
 
-Railway uses the `Dockerfile` build and starts the service with:
+The `Dockerfile` image runs as Deployment `standup-bot` in namespace `ai-slack-bots` on `us-4` and starts the bot with:
 
 ```bash
 python main.py
