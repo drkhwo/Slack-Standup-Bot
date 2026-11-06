@@ -161,17 +161,17 @@ WEEKLY_THREAD_TEXT = (
 )
 
 WEEKLY_DAILY_POINTER = (
-    "The weekly update thread is up: <{THREAD_LINK}|post your week there>. "
+    "Friday essays are up: <{THREAD_LINK}|write yours there>. "
     "That one is mandatory today. This daily thread is optional, a second cup if you want one."
 )
 
 WEEKLY_REMINDER_MESSAGE = (
-    "{MENTIONS}, the week is nearly over and your weekly update is still missing. Reply in this thread before 18:00: "
-    "what you got done this week, plus a candid line of reflection. "
-    "Already posted it in the daily thread by mistake? Just repost it here."
+    "{MENTIONS}, the week is nearly over and your Friday essay is still missing. Reply in this thread before 18:00: "
+    "what you got done, plus an honest line on how it went. "
+    "Posted it in the daily thread by mistake? Just repost it here."
 )
 
-WEEKLY_THREAD_CLOSED_MESSAGE = "Weekly thread closed. Thank you, everyone. Rest well this weekend; your uncle certainly will."
+WEEKLY_THREAD_CLOSED_MESSAGE = "Friday essays are closed. Thank you, everyone. Rest well this weekend; your uncle certainly will."
 
 
 def _weekly_enabled():
