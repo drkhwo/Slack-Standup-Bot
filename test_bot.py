@@ -1843,7 +1843,21 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.assertEqual(insert_data['user_id'], "U999")
         self.assertEqual(insert_data['raw_text'], "shipped X, reflected on Y")
         self.assertEqual(insert_data['date'], date.today().isoformat())
-        self.mock_app.client.reactions_add.assert_called_once()
+
+    def test_weekly_reply_gets_no_reaction(self):
+        """TC-12-10A: Replies in the weekly thread are saved without a reaction"""
+        handler = self._register_handler()
+        self.mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+        handler(body={"event": {
+            "user": "U999",
+            "text": "shipped X, reflected on Y",
+            "ts": "9999999999.000001",
+            "thread_ts": bot_module.weekly_thread_ts,
+        }}, logger=MagicMock())
+
+        self.mock_supabase.table.return_value.insert.assert_called_once()
+        self.mock_app.client.reactions_add.assert_not_called()
 
     def test_daily_reply_still_goes_to_standup_reports(self):
         """TC-12-11: Adding the weekly branch does not reroute daily replies"""
