@@ -150,13 +150,13 @@ FRIDAY_THREAD_CLOSED_SUFFIX = " The weekly thread stays open until 18:00, so the
 
 WEEKLY_THREAD_TEXT = (
     "<!subteam^SF3F5Q5V5>\n\n"
-    "*Weekly update thread — new, and separate from the daily thread above.*\n\n"
-    "*Reply here before 18:00* with a short, human-written update on what you got done this week.\n"
-    "*Brevity* and *clarity* are the two principles. Then reflect briefly, thoughtfully, and candidly on the results.\n"
-    "Ask your clankers to read your commits or threads, but type and publish the text yourself.\n\n"
-    "*This one is mandatory today.* The daily thread above is optional — post your week here instead.\n"
-    "Full context, an example, and the Q&A: "
-    "<https://replika.slack.com/archives/C071GDMB667/p1787130010738909|neo's announcement>.\n\n"
+    ":tea: *FRIDAY ESSAYS*\n\n"
+    "Pour a cup and tell us about your week. Reply here *before 18:00*\n\n"
+    "• *What you got done.* Short and clear\n"
+    "• *How it really went.* What worked, what didn’t, what you’d do differently. Be honest, not polished\n\n"
+    "Clankers can dig through your commits and threads. The words must be yours\n\n"
+    "_“It’s time for you to look inward and start asking yourself the big questions.”_ Small answers are fine too\n\n"
+    "*Mandatory today.* The daily thread is optional\n\n"
     "cc: <@U068KKKNP9R>"
 )
 

@@ -1759,16 +1759,14 @@ class TestWeeklyUpdates(unittest.TestCase):
         self.assertEqual(self.mock_app.client.chat_postMessage.call_count, 2)
 
     def test_weekly_copy_states_the_deadline_and_the_contract(self):
-        """TC-12-05: Weekly copy carries 1000% clarity: deadline, mandate, context link"""
+        """TC-12-05: Friday essays copy states the title, deadline, mandate and the daily thread is optional"""
         text = bot_module.WEEKLY_THREAD_TEXT
+        self.assertIn("FRIDAY ESSAYS", text)
         self.assertIn("18:00", text)
-        self.assertIn("mandatory", text)
-        self.assertIn("separate from the daily thread", text)
+        self.assertIn("Mandatory today", text)
+        self.assertIn("daily thread is optional", text)
+        self.assertIn("The words must be yours", text)
         self.assertIn("SF3F5Q5V5", text)
-        self.assertIn(
-            "https://replika.slack.com/archives/C071GDMB667/p1787130010738909",
-            text,
-        )
         self.assertIn("cc: <@U068KKKNP9R>", text)
         self.assertIn("repost it here", bot_module.WEEKLY_REMINDER_MESSAGE)
 
